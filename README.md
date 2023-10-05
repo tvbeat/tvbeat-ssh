@@ -13,6 +13,7 @@
 
 ```console
 aanderse@ubuntu:~$ sudo curl -f -o /usr/local/bin/tvbeat-ssh https://raw.githubusercontent.com/tvbeat/tvbeat-ssh/master/tvbeat-ssh
+aanderse@ubuntu:~$ sudo chmod +x /usr/local/bin/tvbeat-ssh
 aanderse@ubuntu:~$ tvbeat-ssh validate
 checking availability of required dependencies:
 

@@ -4,6 +4,7 @@
 
 - the `vault` binary [installed](https://developer.hashicorp.com/vault/docs/install) on your system
 - basic system utilities such as `grep`, `jq`, `sed`, and `ssh` installed on your system
+  - if you are a mac user please install gnu `date` and gnu `sed` via `brew`
 
 **installation**
 

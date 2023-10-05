@@ -102,6 +102,11 @@ case $1 in
 			  IdentityFile $cacheDirEx/.ssh/id_ed25519
 			  ProxyCommand bash -c "ssh -l %r -W \$(echo %h | sed 's/^.*+//;s/^\([^:]*$\)/\1:22/') \$(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:\([^:+]*\)$/ -p \1/')"
 			  User $2
+
+			Match host jump.*.tvbeat.com exec "tvbeat-ssh sign all"
+			  IdentityFile $cacheDirEx/.ssh/id_ed25519
+			  Port 443
+			  User $2
 		EOM
 
     if ! grep --silent 'Include tvbeat.conf' "$HOME/.ssh/config"; then

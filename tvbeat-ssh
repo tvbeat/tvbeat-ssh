@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+function show_help() {
+  echo "usage: $0 <command> ..."
+  echo
+  echo "a small helper script to grant you ssh access to tvbeat systems"
+  echo
+  echo "commands:"
+  echo "   sign                  ask vault to sign our ssh public key for access to tvbeat systems"
+  echo "   config                generate and apply the required ssh client configuration locally"
+  echo "   validate              validate that this script has everything it requires to operate"
+  echo "   help                  display this message"
+}
+
+if [[ $# -eq 0 ]]; then
+  show_help
+  exit 1
+fi
+
+case $1 in
+  sign)
+    [[ $# -eq 2 ]] || {
+      echo "'$0 sign' expected exactly 1 argument: role"
+      exit 1
+    }
+
+    cacheDir="${XDG_CACHE_HOME:-$HOME/.cache}/tvbeat"
+    vaultAddr="https://vault.tvbeat.com"
+
+    # shellcheck disable=SC2174
+    mkdir -m 0700 -p "$cacheDir/.ssh"
+
+    if [[ ! -f "$cacheDir/.ssh/id_ed25519" ]]; then
+      ssh-keygen -q -f "$cacheDir/.ssh/id_ed25519" -N "" -t ed25519
+    fi
+
+    if [[ -f "$cacheDir/.ssh/id_ed25519-cert.pub" ]]; then
+      cutoff=$(date +%s -d '+ 1 hour')
+      valid_to=$(ssh-keygen -L -f "$cacheDir/.ssh/id_ed25519-cert.pub" \
+        | grep 'Valid: from' \
+        | sed -E 's/[ ]+Valid: from (.+) to (.+)/\2/' \
+        | date +%s -f -\
+      )
+
+      if [[ $cutoff -lt $valid_to ]]; then
+        exit 0
+      fi
+    fi
+
+    if [[ $(vault token lookup -address="$vaultAddr" -format json 2>/dev/null | jq '.data.ttl') -lt 3600 ]]; then
+      vault login -address="$vaultAddr" -method=oidc
+
+      cp -f "$HOME/.vault-token" "$cacheDir/"
+    fi
+
+    vault write -address="$vaultAddr" -field=signed_key "ssh/sign/$2" public_key=@"$cacheDir/.ssh/id_ed25519.pub" > "$cacheDir/.ssh/id_ed25519-cert.pub"
+    ;;
+
+  config)
+    [[ $# -eq 2 ]] || {
+      echo "'$0 sign' expected exactly 1 argument: username"
+      exit 1
+    }
+
+    if [[ -n ${XDG_CACHE_HOME:+x} ]]; then
+      # shellcheck disable=SC2016
+      cacheDirEx='${XDG_CACHE_HOME}/tvbeat'
+    else
+      # shellcheck disable=SC2088
+      cacheDirEx='~/.cache/tvbeat'
+    fi
+
+    # shellcheck disable=SC2174
+    mkdir -m 0700 -p "$HOME/.ssh"
+
+    (umask 077; touch "$HOME/.ssh/config")
+
+    # NOTE: use of tabs over spaces in the following heredoc is *intentional*
+		cat <<-EOM > "$HOME/.ssh/tvbeat.conf"
+			Host dev0-hetz+*.node
+			  LocalCommand [ -f $cacheDirEx/.vault-token ] && bash -c "scp -q -o PermitLocalCommand=no $cacheDirEx/.vault-token %r@%n:; rm $cacheDirEx/.vault-token;"
+			  PermitLocalCommand yes
+
+			Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz prod1-ibm prod1-hybrid
+			  HostName jump.%h.tvbeat.com
+			  IdentityFile $cacheDirEx/.ssh/id_ed25519
+			  Port 443
+			  User $2
+
+			Match host *+* exec "tvbeat-ssh sign developer"
+			  IdentityFile $cacheDirEx/.ssh/id_ed25519
+			  ProxyCommand bash -c "ssh -l %r -W \$(echo %h | sed 's/^.*+//;s/^\([^:]*$\)/\1:22/') \$(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:\([^:+]*\)$/ -p \1/')"
+			  User $2
+		EOM
+
+    if ! grep --silent 'Include tvbeat.conf' "$HOME/.ssh/config"; then
+      if [ ! -s "$HOME/.ssh/config" ]; then
+        # shellcheck disable=SC2016
+        echo -e '# tvbeat configuration added by `tvbeat-ssh config` command\nInclude tvbeat.conf\n' >> "$HOME/.ssh/config"
+      else
+        # shellcheck disable=SC2016
+        sed -i '1s/^/# tvbeat configuration added by `tvbeat-ssh config` command\nInclude tvbeat.conf\n\n/' "$HOME/.ssh/config"
+      fi
+    fi
+    ;;
+
+  validate)
+    [[ $# -eq 1 ]] || {
+      echo "'$0 sign' expected exactly 0 arguments"
+      exit 1
+    }
+
+    echo 'checking availability of required dependencies:'
+    echo
+
+    missing=false
+
+    # aside from coreutils - no assumptions
+    for cmd in grep jq scp sed ssh vault; do
+      if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "- [❌] $cmd"
+
+        missing=true
+      else
+        echo "- [✔️] $cmd"
+      fi
+    done
+
+    if $missing; then
+      echo
+      echo 'please install any missing dependencies onto your system'
+
+      exit 1
+    fi
+    ;;
+
+  -h|--help|help|*)
+    show_help
+    ;;
+
+esac

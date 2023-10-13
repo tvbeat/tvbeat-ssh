@@ -23,10 +23,6 @@
           text = builtins.readFile ./tvbeat-ssh;
         };
 
-        checks.default = pkgs.runCommand "shellcheck" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
-          shellcheck ${self}/tvbeat-ssh > $out
-        '';
-
         devShells.default = with pkgs;
           mkShell {
             name = "tvbeat-ssh";

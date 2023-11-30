@@ -2,7 +2,7 @@
   description = "a small helper script to grant you ssh access to tvbeat systems";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-23.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -12,27 +12,25 @@
         pkgs = nixpkgs.legacyPackages.${system};
       in
       {
-        packages.default = pkgs.writeShellApplication {
+        packages.default = pkgs.buildGoModule {
           name = "tvbeat-ssh";
-          runtimeInputs = with pkgs; [
-            gnugrep
-            gnused
-            jq
-            vault
-          ];
-          text = builtins.readFile ./tvbeat-ssh;
+          src = ./.;
+          vendorHash = "sha256-+iRplE8gB0aFzHXuYGFdabHCmSeQRn+YZ+Q4N5mhlYQ=";
         };
 
         devShells.default = with pkgs;
           mkShell {
             name = "tvbeat-ssh";
             packages = [
-              shellcheck
-
-              gnugrep
-              gnused
-              jq
-              vault
+              go
+              gotools
+              gopls
+              go-outline
+              gocode
+              gopkgs
+              gocode-gomod
+              godef
+              golint
             ];
           };
       }

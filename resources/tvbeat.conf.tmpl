@@ -1,0 +1,23 @@
+Host dev0-hetz+*.node
+  LocalCommand [ -f {{.Token}} ] && bash -c "scp -q -o PermitLocalCommand=no {{.Token}} %r@%n:; rm {{.Token}};"
+  PermitLocalCommand yes
+
+Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz prod1-ibm prod1-hybrid
+  HostName jump.%h.tvbeat.com
+  IdentityFile {{.IdentityFile}}
+  Port 443
+  User {{.Username}}
+
+Match host *+* exec "tvbeat-ssh sign --role {{.Role}}"
+  IdentityFile {{.IdentityFile}}
+  {{if .PowerShell -}}
+  ProxyCommand powershell -c "ssh -W ((echo %h) -replace '^.*\+', '' -replace '^[^:]*$', '$0:22') ((echo %h) -replace '\+[^+]*$', '' -replace '([^+%%]*)%%([^+]*)$', '$2 -l $1' -replace ':([^:+]*)$', ' -p $1')"
+  {{- else -}}
+  ProxyCommand bash -c "ssh -l %r -W $(echo %h | sed 's/^.*+//;s/^\([^:]*$\)/\1:22/') $(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:\([^:+]*\)$/ -p \1/')"
+  {{- end}}
+  User {{.Username}}
+
+Match host jump.*.tvbeat.com exec "tvbeat-ssh sign --role {{.Role}}"
+  IdentityFile {{.IdentityFile}}
+  Port 443
+  User {{.Username}}

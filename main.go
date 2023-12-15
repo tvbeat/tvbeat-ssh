@@ -576,5 +576,26 @@ func signAction(cCtx *cli.Context) error {
 		panic(err)
 	}
 
+	// place a copy of ~/.vault-token into our application cache directory
+	// openssh configuration will make use of this token - copying it into
+	// onto the destination server we are logging into if it is in the
+	// dev0-hetz cluster
+	source, err := os.Open(filepath.Join(userHomeDir, ".vault-token"))
+	if err != nil {
+		panic(err)
+	}
+	defer source.Close()
+
+	dest, err := os.Create(filepath.Join(cacheDir, ".vault-token"))
+	if err != nil {
+		panic(err)
+	}
+	defer dest.Close()
+
+	_, err = io.Copy(dest, source)
+	if err != nil {
+		panic(err)
+	}
+
 	return nil
 }

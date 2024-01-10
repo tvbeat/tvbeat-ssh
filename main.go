@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 
@@ -456,7 +455,7 @@ func signAction(cCtx *cli.Context) error {
 		}
 
 		sigintCh := make(chan os.Signal, 1)
-		signal.Notify(sigintCh, os.Interrupt, os.Kill, syscall.SIGTSTP)
+		signal.Notify(sigintCh, os.Interrupt, os.Kill)
 		defer signal.Stop(sigintCh)
 
 		response, err := client.Auth.JwtOidcRequestAuthorizationUrl(

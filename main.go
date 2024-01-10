@@ -248,10 +248,9 @@ func configAction(cCtx *cli.Context) error {
 		panic(err)
 	}
 
-	// use ~ expansion inside ~/.ssh configuration files if possible
-	if strings.HasPrefix(cacheDir, userHomeDir) {
-		// TODO: check with Dominik if this works on windows
-		cacheDir = strings.Replace(cacheDir, userHomeDir, "~", 1)
+	suffix := ""
+	if runtime.GOOS == "windows" {
+		suffix = ".exe"
 	}
 
 	// generate ssh configuration required to access tvbeat servers over ssh via vault
@@ -261,12 +260,25 @@ func configAction(cCtx *cli.Context) error {
 		Username     string
 		Role         string
 		PowerShell   bool
+		Suffix       string
 	}{
 		Token:        filepath.Join(cacheDir, ".vault-token"),
 		IdentityFile: filepath.Join(cacheDir, ".ssh", "id_ed25519"),
 		Username:     cCtx.String("username"),
 		Role:         cCtx.String("role"),
 		PowerShell:   runtime.GOOS == "windows",
+		Suffix:       suffix,
+	}
+
+	// use ~/variable expansion inside ~/.ssh configuration files if possible
+	if strings.HasPrefix(cacheDir, userHomeDir) {
+		if runtime.GOOS == "windows" {
+			data.Token = strings.Replace(data.Token, userHomeDir, "$env:USERPROFILE", 1)
+		} else {
+			data.Token = strings.Replace(data.Token, userHomeDir, "~", 1)
+		}
+
+		data.IdentityFile = strings.Replace(data.IdentityFile, userHomeDir, "~", 1)
 	}
 
 	tmpl, err := template.New("tvbeat.conf.tmpl").ParseFS(res, "resources/tvbeat.conf.tmpl")

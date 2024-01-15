@@ -1,5 +1,9 @@
 Host dev0-hetz+*.node
+  {{if .PowerShell -}}
+  LocalCommand powershell -c "if (Test-Path {{.Token}}) { Start-Process -FilePath 'scp' -ArgumentList @('-q', '-o', 'PermitLocalCommand=no', \"{{.Token}}\", '%r@%n:') -NoNewWindow -Wait; Remove-Item \"{{.Token}}\" }"
+  {{- else -}}
   LocalCommand [ -f {{.Token}} ] && bash -c "scp -q -o PermitLocalCommand=no {{.Token}} %r@%n:; rm {{.Token}};"
+  {{- end}}
   PermitLocalCommand yes
 
 Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz prod1-ibm prod1-hybrid
@@ -8,7 +12,7 @@ Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz prod1-ibm prod1-hybrid
   Port 443
   User {{.Username}}
 
-Match host *+* exec "tvbeat-ssh sign --role {{.Role}}"
+Match host *+* exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
   IdentityFile {{.IdentityFile}}
   {{if .PowerShell -}}
   ProxyCommand powershell -c "ssh -W ((echo %h) -replace '^.*\+', '' -replace '^[^:]*$', '$0:22') ((echo %h) -replace '\+[^+]*$', '' -replace '([^+%%]*)%%([^+]*)$', '$2 -l $1' -replace ':([^:+]*)$', ' -p $1')"
@@ -17,7 +21,7 @@ Match host *+* exec "tvbeat-ssh sign --role {{.Role}}"
   {{- end}}
   User {{.Username}}
 
-Match host jump.*.tvbeat.com exec "tvbeat-ssh sign --role {{.Role}}"
+Match host jump.*.tvbeat.com exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
   IdentityFile {{.IdentityFile}}
   Port 443
   User {{.Username}}

@@ -334,6 +334,8 @@ func configAction(cCtx *cli.Context) error {
 		}
 	}
 
+	fmt.Printf("%s has been successfully generated.", filepath.Join(sshDir, "tvbeat.conf"))
+
 	return nil
 }
 

@@ -188,7 +188,7 @@ var (
 func main() {
 	app := &cli.App{
 		Name:  "tvbeat-ssh",
-		Usage: "a small helper script to grant you ssh access to tvbeat systems",
+		Usage: "a small tool to grant you ssh access to tvbeat systems",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "verbose", Value: false, Usage: "print messages useful for debugging"},
 		},

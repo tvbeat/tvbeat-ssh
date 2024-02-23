@@ -31,7 +31,7 @@ aanderse@ubuntu:~$ # all done
 
 **installation - windows**
 
-*NOTE:* the following assumes you are in a `powershell` terminal
+*NOTE:* the following assumes you are in a `powershell` terminal, though [can be adapted](https://jonathansoma.com/lede/foundations-2019/terminal/adding-to-your-path-cmder-win/) for console emulators like `cmder`
 
 ```console
 PS C:\Users\aanderse> Invoke-WebRequest -Uri https://github.com/tvbeat/tvbeat-ssh/releases/download/v0.0.4/tvbeat-ssh-v0.0.4-windows-amd64.zip -OutFile tvbeat-ssh-v0.0.4-windows-amd64.zip

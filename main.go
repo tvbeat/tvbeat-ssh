@@ -486,9 +486,6 @@ func signAction(cCtx *cli.Context) error {
 
 		authUrl := response.Data["auth_url"].(string)
 
-		log.Printf("Complete the login via your OIDC provider. Launching browser to:\n\n%s\n\nWaiting for OIDC authentication to complete...", authUrl)
-		browser.OpenURL(authUrl)
-
 		params, err := url.ParseQuery(authUrl)
 		if err != nil {
 			panic(err)
@@ -549,6 +546,9 @@ func signAction(cCtx *cli.Context) error {
 				doneCh <- err
 			}
 		}()
+
+		log.Printf("Complete the login via your OIDC provider. Launching browser to:\n\n%s\n\nWaiting for OIDC authentication to complete...", authUrl)
+		browser.OpenURL(authUrl)
 
 		select {
 		case err := <-doneCh:

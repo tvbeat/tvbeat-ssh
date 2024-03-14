@@ -10,8 +10,8 @@ after successfully installing `tvbeat-ssh` you can forget about this tool entire
 **installation - darwin**
 
 ```console
-aanderse@macbook ~ % wget https://github.com/tvbeat/tvbeat-ssh/releases/download/v0.0.4/tvbeat-ssh-v0.0.4-darwin-amd64.tar.gz
-aanderse@macbook ~ % tar xf tvbeat-ssh-v0.0.4-darwin-amd64.tar.gz
+aanderse@macbook ~ % wget https://github.com/tvbeat/tvbeat-ssh/releases/download/v1.0.0/tvbeat-ssh-v1.0.0-darwin-amd64.tar.gz
+aanderse@macbook ~ % tar xf tvbeat-ssh-v1.0.0-darwin-amd64.tar.gz
 aanderse@macbook ~ % sudo mv tvbeat-ssh /usr/local/bin/
 aanderse@macbook ~ % tvbeat-ssh config --username aanderse
 /Users/aanderse/.ssh/tvbeat.conf has been successfully generated.
@@ -21,8 +21,8 @@ aanderse@macbook ~ % # all done
 **installation - linux**
 
 ```console
-aanderse@ubuntu:~$ wget https://github.com/tvbeat/tvbeat-ssh/releases/download/v0.0.4/tvbeat-ssh-v0.0.4-linux-amd64.tar.gz
-aanderse@ubuntu:~$ tar xf tvbeat-ssh-v0.0.4-linux-amd64.tar.gz
+aanderse@ubuntu:~$ wget https://github.com/tvbeat/tvbeat-ssh/releases/download/v1.0.0/tvbeat-ssh-v1.0.0-linux-amd64.tar.gz
+aanderse@ubuntu:~$ tar xf tvbeat-ssh-v1.0.0-linux-amd64.tar.gz
 aanderse@ubuntu:~$ sudo mv tvbeat-ssh /usr/local/bin/
 aanderse@ubuntu:~$ tvbeat-ssh config --username aanderse
 /home/aanderse/.ssh/tvbeat.conf has been successfully generated.
@@ -34,9 +34,9 @@ aanderse@ubuntu:~$ # all done
 *NOTE:* the following assumes you are in a `powershell` terminal, though [can be adapted](https://jonathansoma.com/lede/foundations-2019/terminal/adding-to-your-path-cmder-win/) for console emulators like `cmder`
 
 ```console
-PS C:\Users\aanderse> Invoke-WebRequest -Uri https://github.com/tvbeat/tvbeat-ssh/releases/download/v0.0.4/tvbeat-ssh-v0.0.4-windows-amd64.zip -OutFile tvbeat-ssh-v0.0.4-windows-amd64.zip
+PS C:\Users\aanderse> Invoke-WebRequest -Uri https://github.com/tvbeat/tvbeat-ssh/releases/download/v1.0.0/tvbeat-ssh-v1.0.0-windows-amd64.zip -OutFile tvbeat-ssh-v1.0.0-windows-amd64.zip
 PS C:\Users\aanderse> New-Item -ItemType directory -Path "$env:USERPROFILE\bin" -Force
-PS C:\Users\aanderse> Expand-Archive -Path tvbeat-ssh-v0.0.4-windows-amd64.zip -DestinationPath "$env:USERPROFILE\bin\" -Force
+PS C:\Users\aanderse> Expand-Archive -Path tvbeat-ssh-v1.0.0-windows-amd64.zip -DestinationPath "$env:USERPROFILE\bin\" -Force
 PS C:\Users\aanderse> [Environment]::SetEnvironmentVariable("PATH", [Environment]::GetEnvironmentVariable("PATH", "USER") + ";$env:USERPROFILE\bin", "USER")
 PS C:\Users\aanderse> # at this point exit powershell, then enter again to refresh your $PATH
 PS C:\Users\aanderse> tvbeat-ssh config --username aanderse

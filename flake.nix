@@ -34,43 +34,5 @@
             ];
           };
       }
-    ) // {
-      nixosModules.lxd =
-        { config, pkgs, lib, ... }:
-        let
-          tvbeat-ssh = self.packages.${config.nixpkgs.system}.default;
-          script = pkgs.writeShellApplication {
-            name = "script";
-            runtimeInputs = [ pkgs.yq ];
-            text = ''
-              for f in salt/pillar/clusters/*/infra.sls; do
-                if [[ ! -f $f ]]; then
-                  continue
-                fi
-
-                ipv4=$(yq -r ".nodes.\"$1\".public.address" "$f")
-
-                if [[ $ipv4 != "null" ]]; then
-                  echo -n "$ipv4"
-                  exit 0
-                fi
-              done
-
-              exit 1
-            '';
-          };
-        in
-        {
-          programs.ssh.extraConfig = ''
-            # convenience wrapper for logging into our lxd clusters
-            Match exec "${script}/bin/script %h" exec "${tvbeat-ssh}/bin/tvbeat-ssh sign devops"
-              User root
-              IdentityFile ~/.cache/tvbeat/.ssh/id_ed25519
-              UserKnownHostsFile salt/cache/known_hosts
-              StrictHostKeyChecking no
-              # https://superuser.com/questions/1633430/ssh-config-with-dynamic-ip
-              ProxyCommand bash -c "${pkgs.netcat}/bin/nc $(${script}/bin/script %h) %p"
-          '';
-        };
-    };
+    );
 }

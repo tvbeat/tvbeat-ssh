@@ -10,8 +10,9 @@ after successfully installing `tvbeat-ssh` you can forget about this tool entire
 **installation - darwin**
 
 ```console
-aanderse@macbook ~ % wget https://github.com/tvbeat/tvbeat-ssh/releases/download/v1.0.0/tvbeat-ssh-v1.0.0-darwin-amd64.tar.gz
+aanderse@macbook ~ % curl -O https://github.com/tvbeat/tvbeat-ssh/releases/download/v1.0.0/tvbeat-ssh-v1.0.0-darwin-amd64.tar.gz
 aanderse@macbook ~ % tar xf tvbeat-ssh-v1.0.0-darwin-amd64.tar.gz
+aanderse@macbook ~ % sudo mkdir /usr/local/bin/
 aanderse@macbook ~ % sudo mv tvbeat-ssh /usr/local/bin/
 aanderse@macbook ~ % tvbeat-ssh config --username aanderse
 /Users/aanderse/.ssh/tvbeat.conf has been successfully generated.

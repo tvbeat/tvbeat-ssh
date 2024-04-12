@@ -18,6 +18,14 @@ aanderse@macbook ~ % tvbeat-ssh config --username aanderse
 /Users/aanderse/.ssh/tvbeat.conf has been successfully generated.
 aanderse@macbook ~ % # all done
 ```
+You might get a popup window saying the `tvbeat-ssh` program cannot be run. On the popup window you should click the `Show in Finder` button, and once the `Finder` window is opened, right-click the `tvbeat-ssh` program and click `Open`. This will ensure `tvbeat-ssh` can run at any point in the future.
+
+You can now repeat the `tvbeat-ssh` configuration command and everything should work:
+```
+aanderse@macbook ~ % tvbeat-ssh config --username aanderse
+/Users/aanderse/.ssh/tvbeat.conf has been successfully generated.
+aanderse@macbook ~ % # all done
+```
 
 **installation - linux**
 

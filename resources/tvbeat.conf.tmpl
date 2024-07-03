@@ -15,9 +15,9 @@ Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz prod1-ibm prod1-hybrid
 Match host *+* exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
   IdentityFile {{.IdentityFile}}
   {{if .PowerShell -}}
-  ProxyCommand powershell -c "ssh -W ((echo %h) -replace '^.*\+', '' -replace '^[^:]*$', '$0:22') ((echo %h) -replace '\+[^+]*$', '' -replace '([^+%%]*)%%([^+]*)$', '$2 -l $1' -replace ':([^:+]*)$', ' -p $1')"
+  ProxyCommand powershell -c "ssh -W ((echo %h) -replace '^.*\+', '' -replace '^[^:]*$', '$0:22') ((echo %h) -replace '\+[^+]*$', '' -replace '([^+%%]*)%%([^+]*)$', '$2 -l {{.Username}}' -replace ':([^:+]*)$', ' -p $1')"
   {{- else -}}
-  ProxyCommand bash -c "ssh -l %r -W $(echo %h | sed 's/^.*+//;s/^\([^:]*$\)/\1:22/') $(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:\([^:+]*\)$/ -p \1/')"
+  ProxyCommand bash -c "ssh -l {{.Username}} -W $(echo %h | sed 's/^.*+//;s/^\([^:]*$\)/\1:22/') $(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:\([^:+]*\)$/ -p \1/')"
   {{- end}}
   User {{.Username}}
 

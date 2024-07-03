@@ -13,9 +13,10 @@
       in
       {
         packages.default = pkgs.buildGoModule {
-          name = "tvbeat-ssh";
+          pname = "tvbeat-ssh";
+          version = "1.0.1";
           src = ./.;
-          vendorHash = "sha256-+iRplE8gB0aFzHXuYGFdabHCmSeQRn+YZ+Q4N5mhlYQ=";
+          vendorHash = "sha256-zrjQaDF/h5Lq2vivJ9vDAw1kTOh7cmHH3z1iBhewpzY=";
         };
 
         devShells.default = with pkgs;

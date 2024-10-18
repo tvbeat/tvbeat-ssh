@@ -269,6 +269,9 @@ func configAction(cCtx *cli.Context) error {
 		PowerShell:   runtime.GOOS == "windows",
 		Suffix:       suffix,
 	}
+	
+	data.Token = filepath.ToSlash(data.Token)
+	data.IdentityFile = filepath.ToSlash(data.IdentityFile)
 
 	// use ~/variable expansion inside ~/.ssh configuration files if possible
 	if strings.HasPrefix(cacheDir, userHomeDir) {

@@ -269,7 +269,7 @@ func configAction(cCtx *cli.Context) error {
 		PowerShell:   runtime.GOOS == "windows",
 		Suffix:       suffix,
 	}
-	
+
 	data.Token = filepath.ToSlash(data.Token)
 	data.IdentityFile = filepath.ToSlash(data.IdentityFile)
 
@@ -537,11 +537,23 @@ func signAction(cCtx *cli.Context) error {
 			err = nil
 		})
 
-		listener, err := net.Listen("tcp", "localhost:8250")
-		if err != nil {
-			panic(err)
+		var listener net.Listener
+
+		for retries := 5; retries > 0; retries-- {
+			listener, err := net.Listen("tcp", "localhost:8250")
+
+			if err != nil {
+				if retries > 0 {
+					log.Printf("%s, will attempt %d more time(s)", err, retries)
+					time.Sleep(3 * time.Second)
+				} else {
+					panic(err)
+				}
+			} else {
+				defer listener.Close()
+				break
+			}
 		}
-		defer listener.Close()
 
 		go func() {
 			err := http.Serve(listener, nil)

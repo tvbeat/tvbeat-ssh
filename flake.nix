@@ -9,40 +9,12 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        outputs = import ./default.nix { inherit system nixpkgs; };
       in
       {
-        packages.default = pkgs.buildGoModule {
-          pname = "tvbeat-ssh";
-          version = "1.0.1";
-          src = ./src;
-          vendorHash = "sha256-zrjQaDF/h5Lq2vivJ9vDAw1kTOh7cmHH3z1iBhewpzY=";
-        };
-
-        devShells.default = with pkgs;
-          mkShell {
-            name = "tvbeat-ssh";
-            packages = [
-              go
-              gotools
-              gopls
-              go-outline
-              gopls
-              gopkgs
-              gocode-gomod
-              godef
-              golint
-            ];
-          };
+        inherit (outputs) packages devShells;
       }
     ) // {
-      overlays.default = final: _: {
-        tvbeat-ssh = final.buildGoModule {
-          pname = "tvbeat-ssh";
-          version = "1.0.1";
-          src = ./src;
-          vendorHash = "sha256-zrjQaDF/h5Lq2vivJ9vDAw1kTOh7cmHH3z1iBhewpzY=";
-        };
-      };
+      inherit (import ./default.nix { nixpkgs = null; }) overlays;
     };
 }

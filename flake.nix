@@ -9,15 +9,16 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+
+          overlays = [
+            self.overlays.default
+          ];
+        };
       in
       {
-        packages.default = pkgs.buildGoModule {
-          pname = "tvbeat-ssh";
-          version = "1.0.1";
-          src = ./src;
-          vendorHash = "sha256-zrjQaDF/h5Lq2vivJ9vDAw1kTOh7cmHH3z1iBhewpzY=";
-        };
+        packages.default = pkgs.tvbeat-ssh;
 
         devShells.default = with pkgs;
           mkShell {
@@ -35,5 +36,7 @@
             ];
           };
       }
-    );
+    ) // {
+      overlays.default = import ./overlays.nix;
+    };
 }

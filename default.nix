@@ -1,5 +1,8 @@
+let
+  sources = import ./lon.nix;
+in
 { system ? builtins.currentSystem
-, nixpkgs
+, nixpkgs ? sources.nixpkgs
 }:
 let
   pkgs = import nixpkgs {

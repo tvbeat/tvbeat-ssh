@@ -25,7 +25,10 @@ import (
 
 	"github.com/hashicorp/vault-client-go"
 	"github.com/hashicorp/vault-client-go/schema"
-	"github.com/pkg/browser"
+
+	// "github.com/pkg/browser"
+	"github.com/tvbeat/tvbeat-ssh/browser" // with custom app
+
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 )
@@ -199,6 +202,7 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "username", Required: true, Usage: "your tvbeat username on google"},
 					&cli.StringFlag{Name: "role", Value: "all", Usage: "which vault role to use when logging in"},
+					&cli.StringFlag{Name: "browser", Usage: "which vault role to use when logging in"},
 				},
 				Action: configAction,
 			},
@@ -207,6 +211,7 @@ func main() {
 				Usage: "generate and sign a ssh key which can be used to access tvbeat systems via ssh",
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "role", Value: "all", Usage: "which vault role to use when logging in"},
+					&cli.StringFlag{Name: "browser", Usage: "which web browser to use"},
 				},
 				Action: signAction,
 			},
@@ -261,6 +266,7 @@ func configAction(cCtx *cli.Context) error {
 		Role         string
 		PowerShell   bool
 		Suffix       string
+		Browser      string
 	}{
 		Token:        filepath.Join(cacheDir, ".vault-token"),
 		IdentityFile: filepath.Join(cacheDir, ".ssh", "id_ed25519"),
@@ -268,6 +274,7 @@ func configAction(cCtx *cli.Context) error {
 		Role:         cCtx.String("role"),
 		PowerShell:   runtime.GOOS == "windows",
 		Suffix:       suffix,
+		Browser:      cCtx.String("browser"),
 	}
 	
 	data.Token = filepath.ToSlash(data.Token)
@@ -551,7 +558,7 @@ func signAction(cCtx *cli.Context) error {
 		}()
 
 		log.Printf("Complete the login via your OIDC provider. Launching browser to:\n\n%s\n\nWaiting for OIDC authentication to complete...", authUrl)
-		browser.OpenURL(authUrl)
+		browser.OpenURL(authUrl, cCtx.String("browser"))
 
 		select {
 		case err := <-doneCh:

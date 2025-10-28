@@ -12,7 +12,7 @@ Host dev0-hetz alpha0-hetz stage0-hetz prod0-hetz
   Port 443
   User {{.Username}}
 
-Match host *+* exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
+Match host *+* exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}{{if .Browser}} --browser '{{.Browser}}'{{end}}"
   IdentityFile {{.IdentityFile}}
   {{if .PowerShell -}}
   ProxyCommand powershell -c "ssh -W ((echo %h) -replace '^.*\+', '' -replace '^[^:]*$', '$0:22') ((echo %h) -replace '\+[^+]*$', '' -replace '([^+%%]*)%%([^+]*)$', '$2 -l {{.Username}}' -replace ':([^:+]*)$', ' -p $1')"
@@ -21,7 +21,7 @@ Match host *+* exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
   {{- end}}
   User {{.Username}}
 
-Match host jump.*.tvbeat.com exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}"
+Match host jump.*.tvbeat.com exec "tvbeat-ssh{{.Suffix}} sign --role {{.Role}}{{if .Browser}} --browser '{{.Browser}}'{{end}}"
   IdentityFile {{.IdentityFile}}
   Port 443
   User {{.Username}}

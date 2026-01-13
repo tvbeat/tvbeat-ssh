@@ -282,13 +282,14 @@ func configAction(cCtx *cli.Context) error {
 
 	// use ~/variable expansion inside ~/.ssh configuration files if possible
 	if strings.HasPrefix(cacheDir, userHomeDir) {
+		userHomeDirSlash := filepath.ToSlash(userHomeDir)
 		if runtime.GOOS == "windows" {
-			data.Token = strings.Replace(data.Token, userHomeDir, "$env:USERPROFILE", 1)
+			data.Token = strings.Replace(data.Token, userHomeDirSlash, "$env:USERPROFILE", 1)
+			data.IdentityFile = strings.Replace(data.IdentityFile, userHomeDirSlash, "$env:USERPROFILE", 1)
 		} else {
-			data.Token = strings.Replace(data.Token, userHomeDir, "~", 1)
+			data.Token = strings.Replace(data.Token, userHomeDirSlash, "~", 1)
+			data.IdentityFile = strings.Replace(data.IdentityFile, userHomeDirSlash, "~", 1)
 		}
-
-		data.IdentityFile = strings.Replace(data.IdentityFile, userHomeDir, "~", 1)
 	}
 
 	tmpl, err := template.New("tvbeat.conf.tmpl").ParseFS(res, "resources/tvbeat.conf.tmpl")

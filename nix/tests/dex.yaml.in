@@ -9,16 +9,20 @@ enablePasswordDB: true
 expiry:
   deviceRequests: 5m
 staticClients:
+  # vault's own OIDC flow (vault UI, `vault login -method=oidc`, tvbeat-ssh 1.x)
   - id: vault
     name: Vault
     secret: vault-secret
     redirectURIs:
       - http://localhost:8250/oidc/callback
-  - id: tvbeat-ssh-device
+  # stands in for the Google "Desktop app" client: loopback redirect, any port
+  - id: tvbeat-ssh-desktop
     name: tvbeat-ssh
-    secret: device-secret
-    redirectURIs:
-      - /device/callback
+    public: true
+  # stands in for the Google "TVs and Limited Input devices" client
+  - id: tvbeat-ssh-device
+    name: tvbeat-ssh (device)
+    public: true
 staticPasswords:
   # password for all: "password"
   - email: alice@tvbeat.com

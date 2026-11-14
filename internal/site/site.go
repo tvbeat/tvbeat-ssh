@@ -31,55 +31,89 @@ type Cluster struct {
 	PushVaultToken bool `json:"push_vault_token,omitempty"`
 }
 
-// Device holds the OAuth "TVs and limited input devices" client used for the
-// device authorization grant. The resulting ID token is exchanged with vault
-// through a role_type=jwt role on the same mount as the browser flow.
-type Device struct {
-	Issuer       string `json:"issuer"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret,omitempty"`
-	VaultRole    string `json:"vault_role"`
-	// Scopes defaults to "openid email profile" (all Google allows here).
-	Scopes string `json:"scopes,omitempty"`
+// Client is an OAuth client registered with the identity provider. For the
+// kinds used here (Google "Desktop app" and "TVs and Limited Input devices")
+// the secret is not confidential and ships in the binary, as Google expects.
+type Client struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret,omitempty"`
+}
+
+// SSO describes signing in directly with the identity provider and handing
+// the resulting ID token to vault (a role_type=jwt login).
+//
+// Vault refuses JWT logins on a mount that is set up for its own OIDC
+// redirect flow (it needs oidc_client_id/secret for that), so this uses a
+// separate jwt mount configured only with oidc_discovery_url.
+type SSO struct {
+	Issuer string `json:"issuer"`
+	// Scopes defaults to "openid email profile" (all Google allows for the
+	// device flow).
+	Scopes     string `json:"scopes,omitempty"`
+	VaultMount string `json:"vault_mount"`
+	VaultRole  string `json:"vault_role"`
+	// Browser is a loopback/PKCE "desktop" client, Device a device-flow one.
+	Browser Client `json:"browser"`
+	Device  Client `json:"device"`
 }
 
 // Site is the organisation-wide configuration.
 type Site struct {
 	VaultAddr string `json:"vault_addr"`
-	// AuthMount is the vault jwt/oidc auth mount path.
-	AuthMount string `json:"auth_mount"`
-	// BrowserRole is the role_type=oidc role used by the browser flow.
-	BrowserRole string `json:"browser_role"`
-	// CallbackPort is the localhost port for the browser flow redirect.
-	// 0 picks a free port; this needs an IdP client that accepts any
-	// loopback port (Google "Desktop app" clients do, "Web" clients do not).
+
+	// SSO, when its issuer is set, is used for every sign-in.
+	SSO SSO `json:"sso"`
+
+	// Otherwise the browser sign-in goes through vault's own OIDC redirect
+	// flow (what tvbeat-ssh 1.x and `vault login -method=oidc` use) on this
+	// mount and role. It needs a fixed localhost callback port, and there is
+	// no device sign-in.
+	AuthMount    string `json:"auth_mount"`
+	BrowserRole  string `json:"browser_role"`
 	CallbackPort int    `json:"callback_port"`
-	Device       Device `json:"device"`
+
 	// UserMount signs user certificates, HostMount signs host certificates.
 	UserMount string `json:"user_mount"`
 	HostMount string `json:"host_mount"`
+	// SSHRoles maps the role names people pass to --role onto vault ssh
+	// role names; missing entries map to themselves.
+	SSHRoles map[string]string `json:"ssh_roles,omitempty"`
 	// PushTokenTTL is the TTL of child tokens pushed to nodes.
 	PushTokenTTL string    `json:"push_token_ttl"`
 	Clusters     []Cluster `json:"clusters"`
-	// URL, when set, is fetched by `config` and `login` to refresh this file.
+	// URL, when set, is fetched by `config` to refresh this description.
 	URL string `json:"url,omitempty"`
+}
+
+// SSOConfigured reports whether direct identity provider sign-in is set up.
+func (s *Site) SSOConfigured() bool { return s.SSO.Issuer != "" && s.SSO.Browser.ID != "" }
+
+// DeviceConfigured reports whether the device flow can be used.
+func (s *Site) DeviceConfigured() bool { return s.SSO.Issuer != "" && s.SSO.Device.ID != "" }
+
+// SSHRole maps a role name to the vault ssh role.
+func (s *Site) SSHRole(name string) string {
+	if r, ok := s.SSHRoles[name]; ok && r != "" {
+		return r
+	}
+	return name
 }
 
 // Default is compiled into the binary; it is what a plain
 // `tvbeat-ssh config --username x` uses.
 var Default = Site{
-	VaultAddr:    "https://vault.tvbeat.com",
+	VaultAddr: "https://vault.tvbeat.com",
+	SSO: SSO{
+		// TODO(aanderse): fill in once the Google OAuth clients and the
+		// `google` jwt mount exist (see deployments draft). Until then the
+		// browser sign-in uses vault's OIDC flow and there is no device flow.
+		Issuer:     "",
+		VaultMount: "google",
+		VaultRole:  "tvbeat-ssh",
+	},
 	AuthMount:    "oidc",
 	BrowserRole:  "default",
 	CallbackPort: 8250,
-	Device: Device{
-		Issuer: "https://accounts.google.com",
-		// TODO(aanderse): "TVs and Limited Input devices" OAuth client. Until it
-		// exists the device flow is unavailable and the browser flow is used.
-		ClientID:     "",
-		ClientSecret: "",
-		VaultRole:    "device",
-	},
 	UserMount:    "ssh",
 	HostMount:    "ssh-host",
 	PushTokenTTL: "8h",
@@ -185,9 +219,13 @@ func (s *Site) fillDefaults() {
 	if s.PushTokenTTL == "" {
 		s.PushTokenTTL = d.PushTokenTTL
 	}
-	if s.Device.VaultRole == "" {
-		s.Device.VaultRole = d.Device.VaultRole
+	if s.SSO.VaultMount == "" {
+		s.SSO.VaultMount = d.SSO.VaultMount
 	}
+	if s.SSO.VaultRole == "" {
+		s.SSO.VaultRole = d.SSO.VaultRole
+	}
+	s.SSO.Issuer = strings.TrimRight(s.SSO.Issuer, "/")
 }
 
 // LoadFile reads a site description from a local file.

@@ -45,13 +45,13 @@ func (l *Login) Choose(m Method) Method {
 		}
 	}
 	if m != Auto {
-		if m == Device && !l.DeviceConfigured() {
+		if m == Device && !l.Site.DeviceConfigured() {
 			l.say("Device sign-in is not set up for this site yet; using the browser instead.")
 			return Browser
 		}
 		return m
 	}
-	if !l.DeviceConfigured() {
+	if !l.Site.DeviceConfigured() {
 		return Browser
 	}
 	if Headless() {

@@ -452,9 +452,9 @@ func (m *Manager) sign(ctx context.Context, paths Paths) (*Creds, error) {
 	if err != nil {
 		return nil, err
 	}
-	signed, err := v.SignUserKey(ctx, s.UserMount, role, string(ssh.MarshalAuthorizedKey(sshPub)))
+	signed, err := v.SignUserKey(ctx, s.UserMount, s.SSHRole(role), string(ssh.MarshalAuthorizedKey(sshPub)))
 	if vault.IsPermissionDenied(err) {
-		return nil, fmt.Errorf("your account is not allowed to use the %q ssh role (%v)", role, err)
+		return nil, fmt.Errorf("your account is not allowed to use the %q ssh role (%v)", s.SSHRole(role), err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("signing your ssh key: %w", err)

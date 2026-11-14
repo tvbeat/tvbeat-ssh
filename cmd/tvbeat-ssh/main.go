@@ -136,9 +136,9 @@ func stderrIsTerminal() bool {
 
 func manager(s *site.Settings, method login.Method) *creds.Manager {
 	return &creds.Manager{
-		Settings: s,
-		Out:      os.Stderr,
-		Method:   method,
+		Settings:    s,
+		Out:         os.Stderr,
+		Method:      method,
 		Interactive: stderrIsTerminal() || os.Getenv("TVBEAT_SSH_INTERACTIVE") == "1",
 		NoAgent:     os.Getenv("TVBEAT_SSH_NO_AGENT") == "1",
 	}

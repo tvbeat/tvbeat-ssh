@@ -13,15 +13,12 @@ import (
 
 	"github.com/mdp/qrterminal/v3"
 
+	"github.com/tvbeat/tvbeat-ssh/internal/site"
 	"github.com/tvbeat/tvbeat-ssh/internal/vault"
 )
 
-// DeviceConfigured reports whether the device flow can be used.
-func (l *Login) DeviceConfigured() bool {
-	return l.Site.Device.Issuer != "" && l.Site.Device.ClientID != ""
-}
-
 type discovery struct {
+	AuthEndpoint   string `json:"authorization_endpoint"`
 	DeviceEndpoint string `json:"device_authorization_endpoint"`
 	TokenEndpoint  string `json:"token_endpoint"`
 }
@@ -43,48 +40,44 @@ type tokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+func scopes(s site.SSO) string {
+	if s.Scopes != "" {
+		return s.Scopes
+	}
+	return "openid email profile"
+}
+
 // Device runs the OAuth 2.0 device authorization grant (RFC 8628) against the
 // identity provider and exchanges the resulting ID token for a vault token.
 func (l *Login) Device(ctx context.Context) (*vault.Auth, error) {
-	d := l.Site.Device
+	sso := l.Site.SSO
 	hc := &http.Client{Timeout: 30 * time.Second}
 
-	disc, err := discover(ctx, hc, d.Issuer)
+	disc, err := discover(ctx, hc, sso.Issuer)
 	if err != nil {
 		return nil, err
 	}
 	if disc.DeviceEndpoint == "" {
-		return nil, fmt.Errorf("%s does not support device sign-in", d.Issuer)
+		return nil, fmt.Errorf("%s does not support device sign-in", sso.Issuer)
 	}
 
-	scopes := d.Scopes
-	if scopes == "" {
-		scopes = "openid email profile"
-	}
-	form := url.Values{"client_id": {d.ClientID}, "scope": {scopes}}
-	if d.ClientSecret != "" {
-		form.Set("client_secret", d.ClientSecret)
+	form := url.Values{"client_id": {sso.Device.ID}, "scope": {scopes(sso)}}
+	if sso.Device.Secret != "" {
+		form.Set("client_secret", sso.Device.Secret)
 	}
 	var dc deviceCode
 	if err := postForm(ctx, hc, disc.DeviceEndpoint, form, &dc); err != nil {
 		return nil, fmt.Errorf("starting device sign-in: %w", err)
 	}
-	verify := dc.VerificationURI
-	if verify == "" {
-		verify = dc.VerificationURL
-	}
+	verify := firstNonEmpty(dc.VerificationURI, dc.VerificationURL)
 	if dc.DeviceCode == "" || dc.UserCode == "" || verify == "" {
 		return nil, errors.New("identity provider returned an incomplete device code response")
 	}
 
 	l.say("To sign in to tvbeat, open this page on any device:\n\n  %s\n\nand enter the code:\n\n  %s\n", verify, dc.UserCode)
 	if l.QR {
-		qrTarget := dc.VerificationURIComplete
-		if qrTarget == "" {
-			qrTarget = verify
-		}
 		l.say("Or scan this with your phone:")
-		qrterminal.GenerateWithConfig(qrTarget, qrterminal.Config{
+		qrterminal.GenerateWithConfig(firstNonEmpty(dc.VerificationURIComplete, verify), qrterminal.Config{
 			Level:          qrterminal.L,
 			Writer:         l.Out,
 			HalfBlocks:     true,
@@ -107,12 +100,12 @@ func (l *Login) Device(ctx context.Context) (*vault.Auth, error) {
 	}
 
 	poll := url.Values{
-		"client_id":   {d.ClientID},
+		"client_id":   {sso.Device.ID},
 		"device_code": {dc.DeviceCode},
 		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 	}
-	if d.ClientSecret != "" {
-		poll.Set("client_secret", d.ClientSecret)
+	if sso.Device.Secret != "" {
+		poll.Set("client_secret", sso.Device.Secret)
 	}
 
 	for {
@@ -148,7 +141,7 @@ func (l *Login) Device(ctx context.Context) (*vault.Auth, error) {
 		if tr.IDToken == "" {
 			return nil, errors.New("identity provider returned no id_token (is the openid scope allowed?)")
 		}
-		auth, err := l.Vault.JWTLogin(ctx, l.Site.AuthMount, d.VaultRole, tr.IDToken)
+		auth, err := l.Vault.JWTLogin(ctx, sso.VaultMount, sso.VaultRole, tr.IDToken)
 		if err != nil {
 			return nil, fmt.Errorf("vault rejected the sign-in: %w", err)
 		}
@@ -164,7 +157,7 @@ func discover(ctx context.Context, hc *http.Client, issuer string) (*discovery, 
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot reach identity provider: %w", err)
+		return nil, fmt.Errorf("cannot reach the identity provider: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -177,9 +170,9 @@ func discover(ctx context.Context, hc *http.Client, issuer string) (*discovery, 
 	return &d, nil
 }
 
-// postForm posts form and decodes the JSON body into out. A non-2xx status
-// is only an error if the body did not decode (OAuth errors arrive as 400s
-// with a JSON body).
+// postForm posts form and decodes the JSON body into out. OAuth errors
+// arrive as 4xx with a JSON body; those decode into tokenResponse.Error and
+// are left for the caller.
 func postForm(ctx context.Context, hc *http.Client, endpoint string, form url.Values, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -203,7 +196,6 @@ func postForm(ctx context.Context, hc *http.Client, endpoint string, form url.Va
 		return jerr
 	}
 	if resp.StatusCode >= 300 {
-		// decoded fine; let the caller look at the OAuth error fields
 		if te, ok := out.(*tokenResponse); ok && te.Error != "" {
 			return nil
 		}

@@ -147,6 +147,8 @@ type TokenInfo struct {
 	EntityID    string
 	Accessor    string
 	Meta        map[string]string
+	// Path is the login path that created the token, e.g. auth/google/login
+	Path string
 }
 
 // LookupSelf validates the client's token.
@@ -163,6 +165,7 @@ func (c *Client) LookupSelf(ctx context.Context) (*TokenInfo, error) {
 	ti.DisplayName, _ = s.Data["display_name"].(string)
 	ti.EntityID, _ = s.Data["entity_id"].(string)
 	ti.Accessor, _ = s.Data["accessor"].(string)
+	ti.Path, _ = s.Data["path"].(string)
 	if ps, ok := s.Data["policies"].([]any); ok {
 		for _, p := range ps {
 			if ps, ok := p.(string); ok {

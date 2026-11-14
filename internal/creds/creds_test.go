@@ -43,7 +43,7 @@ func newFakeVault(t *testing.T) *fakeVault {
 		}
 		switch {
 		case r.URL.Path == "/v1/auth/token/lookup-self":
-			io.WriteString(w, `{"data":{"ttl":3600,"entity_id":"e1"}}`)
+			io.WriteString(w, `{"data":{"ttl":3600,"entity_id":"e1","path":"auth/oidc/oidc/callback"}}`)
 		case r.URL.Path == "/v1/ssh/sign/all":
 			fv.signs.Add(1)
 			var body struct {
@@ -107,7 +107,7 @@ func setup(t *testing.T, withAgent bool) (*Manager, *fakeVault, agent.Agent) {
 	}
 
 	fv := newFakeVault(t)
-	s := &site.Settings{Username: "a", Role: "all", Site: site.Site{VaultAddr: fv.URL, UserMount: "ssh"}}
+	s := &site.Settings{Username: "a", Role: "all", Site: site.Site{VaultAddr: fv.URL, UserMount: "ssh", AuthMount: "oidc"}}
 	return &Manager{Settings: s, Out: io.Discard, Interactive: false}, fv, kr
 }
 
@@ -251,5 +251,20 @@ func TestUsable(t *testing.T) {
 	c.CertType = ssh.HostCert
 	if usable(c, now) {
 		t.Error("host cert accepted as user cert")
+	}
+}
+
+func TestTokenFromOtherMountIgnored(t *testing.T) {
+	m, fv, _ := setup(t, true)
+	// the site now signs in through the google jwt mount; our stored token
+	// came from the oidc mount, so it must not be used for signing
+	m.Settings.Site.SSO = site.SSO{Issuer: "http://127.0.0.1:1", VaultMount: "google", Browser: site.Client{ID: "b"}}
+	m.Settings.Login = "browser"
+	_, err := m.Ensure(context.Background())
+	if err == nil {
+		t.Fatal("expected a sign-in attempt (which fails here), not reuse of the oidc token")
+	}
+	if fv.signs.Load() != 0 {
+		t.Fatal("signed with a token from the wrong mount")
 	}
 }

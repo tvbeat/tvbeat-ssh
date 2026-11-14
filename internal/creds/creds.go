@@ -170,9 +170,10 @@ func (m *Manager) token(ctx context.Context) (*vault.Client, error) {
 		}
 		v.Token = t
 		ti, err := v.LookupSelf(ctx)
-		// a token without an identity (root, approle, ...) cannot fill in
-		// the email principal of the ssh roles, so it is no use to us
-		if err == nil && ti.EntityID != "" && (ti.TTL == 0 || ti.TTL > minTokenTTL) {
+		// only a token from the mount we sign in on will do: the ssh roles
+		// fill in the email principal from that mount's identity alias, and
+		// root/approle tokens have no identity at all
+		if err == nil && ti.EntityID != "" && m.fromOurMount(ti) && (ti.TTL == 0 || ti.TTL > minTokenTTL) {
 			return v, nil
 		}
 	}
@@ -618,4 +619,16 @@ func RecentPrepareFailure() error {
 	}
 	b, _ := os.ReadFile(p)
 	return errors.New(strings.TrimSpace(string(b)))
+}
+
+// fromOurMount reports whether a token was created by a login on the auth
+// mount this site signs in with (child tokens carry their parent's entity
+// but not its path, so they are not reused either).
+func (m *Manager) fromOurMount(ti *vault.TokenInfo) bool {
+	s := &m.Settings.Site
+	mount := s.AuthMount
+	if s.SSOConfigured() || s.DeviceConfigured() {
+		mount = s.SSO.VaultMount
+	}
+	return strings.HasPrefix(ti.Path, "auth/"+mount+"/")
 }

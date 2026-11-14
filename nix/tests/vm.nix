@@ -156,7 +156,11 @@ pkgs.testers.runNixOSTest {
 
     def approve_pending(machine, errfile, user):
         """the person on their phone: read the code, approve it in dex"""
-        machine.wait_until_succeeds(f"grep -A2 'enter the code' {errfile} | tail -1 | grep -E '[A-Z]{{4}}-[A-Z]{{4}}'", timeout=120)
+        try:
+            machine.wait_until_succeeds(f"grep -A2 'enter the code' {errfile} | tail -1 | grep -E '[A-Z]{{4}}-[A-Z]{{4}}'", timeout=120)
+        except Exception:
+            print(machine.execute(f"ls -la /tmp; cat {errfile} {errfile.replace('.err', '.rc')}")[1])
+            raise
         code = machine.succeed(f"grep -A2 'enter the code' {errfile} | tail -1").strip()
         client.succeed(f"FAKE_LOGIN={user}@tvbeat.com FAKE_PASSWORD=password approve-device ${issuer} {code}")
 
@@ -278,7 +282,8 @@ pkgs.testers.runNixOSTest {
         assert "vault rejected the sign-in" in out, out
 
     with subtest("vault-login on a headless server uses the device flow"):
-        scoria.succeed("su - alice -c 'rm -f ~/.vault-token; (tvbeat-ssh vault-login --site /etc/tvbeat-ssh/site.json > /tmp/vl.out 2> /tmp/vl.err; echo $? > /tmp/vl.rc) > /dev/null 2>&1 &'")
+        scoria.succeed("rm -f /home/alice/.vault-token /tmp/vl.*")
+        scoria.succeed("systemd-run --uid=alice --setenv=HOME=/home/alice --setenv=PATH=/run/current-system/sw/bin --unit=vault-login /run/current-system/sw/bin/sh -c 'tvbeat-ssh vault-login --site /etc/tvbeat-ssh/site.json > /tmp/vl.out 2> /tmp/vl.err; echo $? > /tmp/vl.rc'")
         approve_pending(scoria, "/tmp/vl.err", "alice")
         scoria.wait_until_succeeds("test -s /tmp/vl.rc", timeout=120)
         assert scoria.succeed("cat /tmp/vl.rc").strip() == "0", scoria.succeed("cat /tmp/vl.err")

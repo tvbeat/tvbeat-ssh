@@ -26,6 +26,61 @@ Branch `rewrite`, built from scratch. Nothing has been pushed anywhere.
   `sso-all`/`sso-devops` roles templated on the new mount. tvbeat-ssh maps
   `--role all` to `sso-all` through the site config (`ssh_roles`).
   `all`/`devops` keep working for 1.x.
+
+### Why not a jwt role on the existing `oidc` mount (the agreed plan)
+
+I built the agreed plan first. Against a real vault, it fails:
+
+- **Vault refuses the login.** `vault write auth/oidc/role/device
+  role_type=jwt ...` is accepted, but every login on it is refused with
+  `error configuring token validator: unsupported config type`. The source
+  shows why: `path_config.go` `authType()` returns `OIDCFlow` whenever
+  `oidc_discovery_url`, `oidc_client_id` and `oidc_client_secret` are all
+  set. `backend.go` `jwtValidator()` has no case for `OIDCFlow`, so no
+  role_type=jwt login can work on a mount set up for the browser redirect
+  flow. Removing the client id/secret from `oidc` would break the vault UI,
+  `vault login -method=oidc` and every 1.x client. So the only way to get a
+  device flow without breaking those is a second mount configured with
+  `oidc_discovery_url` only.
+- **The coordinator's concern holds for the existing roles.** A login on
+  `google` creates or uses an entity with an alias on `google`, not on
+  `auth_oidc_9d47994e`. So `{{identity.entity.aliases.auth_oidc_9d47994e.metadata.email}}`
+  does not resolve for it. I tested the shortcut of listing both templates
+  in one role: vault returns HTTP 500 `template ... could not be rendered
+  -> alias not found`; it does not drop the unresolved principal. Adding
+  the google mount as a second alias of the existing external groups does
+  not work either: a group holds exactly one alias, and writing a second
+  one *moved* the alias off the `oidc` mount (I verified this, then reset).
+
+How principals and policies stay correct, concretely (deployments draft
+`infra/vault/tf`, mirrored in `nix/tests/vault-setup.sh`):
+
+| | 1.x / vault UI (`oidc` mount) | 2.x (`google` mount) |
+|---|---|---|
+| ssh role | `all`, `devops` (unchanged) | `sso-all`, `sso-devops` (new, identical except the template) |
+| email principal template | `{{identity.entity.aliases.auth_oidc_9d47994e.metadata.email}}` | `{{identity.entity.aliases.<google accessor>.metadata.email}}` |
+| static principal | `jump` / `devops` | `jump` / `devops` |
+| `metadata.email` filled by | role `claim_mappings email=email` | same mapping on role `tvbeat-ssh` |
+| group membership | external groups `all@…` etc., alias on `oidc` | external groups `google:all@…` etc., alias on `google`, same policy each (`for_each` in identity.tf) |
+| who may sign `sso-all` | n/a | policy `all` gains `ssh/sign/sso-all` |
+| who may sign `sso-devops` | n/a | policy `devops` already has `ssh/sign/*` |
+| login restricted to | `bound_claims groups=all@tvbeat.com` | the same, plus `hd=tvbeat.com` |
+
+The certificates are identical either way: principals `jump`/`devops` plus
+the person's email, the same extensions, the same user CA. No server-side
+`authorized_principals` change is needed.
+
+The VM test checks this end to end. An SSO sign-in gets a certificate with
+principals `alice@tvbeat.com, jump`. alice is refused `sso-devops`
+(`permission denied` → "not allowed to use the \"sso-devops\" ssh role").
+bob, in devops@, signs `sso-devops` through the device flow and logs in as
+root. mallory, outside all@, is turned away at login. The legacy `oidc`
+flow with the old `all` role still signs and logs in.
+
+Cost: each person has two vault entities (one per mount). Nothing here keys
+on entity identity apart from these templates. Once 1.x is retired, the old
+roles and groups can be removed, or entities merged if anything else ever
+needs one identity.
 - **Jump hop is in-process** (x/crypto/ssh), not `ssh -W`:
   - it does not re-enter the user's ssh config or our own ProxyCommand
   - we verify the jump host's certificate ourselves
@@ -150,3 +205,41 @@ Branch `rewrite`, built from scratch. Nothing has been pushed anywhere.
   `~/.vault-token`: the "not ours, keep it" path worked as designed. Local
   push testing was disabled after that, and push is only exercised in the
   VMs.
+
+## VM test result
+
+**PASSED**: all 16 subtests in `nix build .#checks.x86_64-linux.vm`. The
+test script took 344s under TCG emulation, with no KVM on this host.
+
+1. vault and dex come up; vault is configured like production plus the
+   new mounts
+2. hosts get certificates from the host CA (deploy-time signing)
+3. `config` writes the ssh config and a CA-only known_hosts; it is
+   idempotent, and `check-host` works
+4. the first ssh signs in through the browser, with no host key prompt;
+   the certificate is held only in the agent
+5. later connections need no sign-in; the new name, the legacy
+   `cluster+node.node` name and the jump host itself all work
+6. a child vault token is pushed to the node: non-orphan, identity policy
+   `all`, TTL 2h in this test
+7. parallel ssh from a cold start (6 at once) signs in exactly once; the
+   preceding `logout` revoked the pushed child token
+8. an expired certificate (120s TTL here) is dropped by the agent and
+   replaced without a sign-in
+9. an expired or revoked sign-in asks again
+10. roles stay separate: an `all` certificate cannot log in as root, and
+    alice is refused `sso-devops`
+11. device sign-in: bob (devops) gets `sso-devops` and logs in as root
+12. mallory, outside all@, is turned away by vault
+13. `vault-login` on a headless node uses the device flow and writes a
+    working `~/.vault-token`
+14. without an ssh-agent the key lives in 0600 files
+15. vault's OIDC flow on the existing `oidc` mount with the old `all` role
+    still works
+16. nothing was ever trusted on first use: users' `~/.ssh/known_hosts`
+    stayed empty
+
+One test-harness fix: the vault-login subtest is now started with
+`systemd-run` instead of a backgrounded `su - alice -c '... &'`. With the
+`su` version, the process never reached Dex on that VM, and I did not pin
+down why. The same pattern works for bob on the client.

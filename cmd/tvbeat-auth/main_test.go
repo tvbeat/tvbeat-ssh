@@ -18,7 +18,7 @@ import (
 )
 
 func TestValidUsername(t *testing.T) {
-	for _, ok := range []string{"aka", "antonija", "robertf", "_svc", "a.b-c_d"} {
+	for _, ok := range []string{"csmith", "dave", "erin2", "_svc", "a.b-c_d"} {
 		if err := validUsername(ok); err != nil {
 			t.Errorf("%q: %v", ok, err)
 		}
@@ -33,18 +33,18 @@ func TestValidUsername(t *testing.T) {
 func TestAskUsername(t *testing.T) {
 	var out bytes.Buffer
 	// enter accepts the suggestion from the email
-	u, err := askUsername(strings.NewReader("\n"), &out, "alan@tvbeat.com", true)
-	if err != nil || u != "alan" || !strings.Contains(out.String(), "[alan]") {
+	u, err := askUsername(strings.NewReader("\n"), &out, "carol.smith@tvbeat.com", true)
+	if err != nil || u != "carol.smith" || !strings.Contains(out.String(), "[carol.smith]") {
 		t.Fatalf("suggestion: %q %v %q", u, err, out.String())
 	}
 	// a typed name wins; an invalid one is asked again
 	out.Reset()
-	u, err = askUsername(strings.NewReader("Not Valid\naka\n"), &out, "alan@tvbeat.com", true)
-	if err != nil || u != "aka" || !strings.Contains(out.String(), "not a valid") {
+	u, err = askUsername(strings.NewReader("Not Valid\ncsmith\n"), &out, "carol.smith@tvbeat.com", true)
+	if err != nil || u != "csmith" || !strings.Contains(out.String(), "not a valid") {
 		t.Fatalf("typed: %q %v %q", u, err, out.String())
 	}
 	// no terminal: never guess
-	if _, err := askUsername(strings.NewReader("aka\n"), io.Discard, "alan@tvbeat.com", false); err == nil || !strings.Contains(err.Error(), "--username") {
+	if _, err := askUsername(strings.NewReader("csmith\n"), io.Discard, "carol.smith@tvbeat.com", false); err == nil || !strings.Contains(err.Error(), "--username") {
 		t.Fatalf("no tty: %v", err)
 	}
 	// nothing usable at all

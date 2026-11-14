@@ -40,7 +40,7 @@ staticPasswords:
     username: mallory
     userID: "a0b9d8c7-0000-4b73-90a9-3cd1661f0000"
     groups: ["contractors@tvbeat.com"]
-  # linux username differs from the email, like alan@ -> aka in tvbeat/idm
+  # linux username differs from the email, as it does for some real accounts
   - email: carol.jones@tvbeat.com
     hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
     username: cjones

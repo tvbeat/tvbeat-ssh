@@ -55,12 +55,12 @@ func TestResolve(t *testing.T) {
 	t.Setenv("TVBEAT_AUTH_SITE", "")
 
 	// the user's settings come next
-	saved := &Settings{Username: "aka", Role: "devops", Site: Site{VaultAddr: "http://mine", Clusters: []Cluster{{Name: "x", Jump: "j:1"}}}}
+	saved := &Settings{Username: "csmith", Role: "devops", Site: Site{VaultAddr: "http://mine", Clusters: []Cluster{{Name: "x", Jump: "j:1"}}}}
 	if err := saved.Save(); err != nil {
 		t.Fatal(err)
 	}
 	s, err = Resolve("")
-	if err != nil || s.Site.VaultAddr != "http://mine" || s.Username != "aka" || s.Role != "devops" {
+	if err != nil || s.Site.VaultAddr != "http://mine" || s.Username != "csmith" || s.Role != "devops" {
 		t.Fatalf("settings: %+v %v", s, err)
 	}
 

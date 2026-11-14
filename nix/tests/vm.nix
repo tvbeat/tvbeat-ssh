@@ -399,7 +399,9 @@ pkgs.testers.runNixOSTest {
 
     with subtest("configs written by tvbeat-ssh 1.x keep working, until setup takes over"):
         legacy = f"TVBEAT_AUTH_SITE={LEGACY_SITE}"
-        run("dave", "mkdir -p ~/.ssh && cp /etc/tvbeat-test/1x/tvbeat.conf /etc/tvbeat-test/1x/config ~/.ssh/")
+        # (install, not cp: the originals are read-only store files, and a
+        # read-only ~/.ssh/config is rightly left alone by setup)
+        run("dave", "install -D -m 600 -t ~/.ssh /etc/tvbeat-test/1x/tvbeat.conf /etc/tvbeat-test/1x/config")
         # 1.x's `Match exec "tvbeat-ssh sign --role all"` now reaches tvbeat-auth
         out = run("dave", f"{SSH} dev0-hetz+scoria.node 'id -un'", extra=legacy)
         assert out.strip() == "dave", out

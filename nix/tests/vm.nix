@@ -292,8 +292,14 @@ pkgs.testers.runNixOSTest {
         before = browser_count("alice")
         run("alice", "for i in 1 2 3 4 5 6; do (" + SSH + " scoria.dev0-hetz \"echo ok\" > /tmp/par.$i 2> /tmp/par-err.$i || echo FAIL >> /tmp/par.$i) & done; wait")
         outs = run("alice", "cat /tmp/par.*")
-        assert outs.split() == ["ok"] * 6, outs
+        assert outs.split() == ["ok"] * 6, outs + run("alice", "tail -n 20 /tmp/par-err.*")
         assert browser_count("alice") == before + 1
+        # every connection to a node comes from the jump host's address, so
+        # sshd must never have cause to penalise it (PerSourcePenalties):
+        # token pushes are not cut off half way, nor started six at a time
+        client.sleep(12)  # let in-flight pushes finish
+        # (the test driver's own open-port probe on ::1 does get one; not us)
+        scoria.fail("journalctl -u sshd.service --no-pager | grep srclimit_penalise | grep -v -e ' ::1/128 ' -e ' 127.0.0.1/32 '")
 
     with subtest("an expired vault token in a week-old tmux session signs in again on the spot"):
         run("alice", f"{SSH} scoria.dev0-hetz 'sleep 3'")  # a fresh token is pushed

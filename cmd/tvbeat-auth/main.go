@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -563,6 +564,12 @@ func cmdPrepare(ctx context.Context, args []string) int {
 }
 
 func cmdProxy(ctx context.Context, args []string) int {
+	// ssh sends its ProxyCommand SIGHUP when the session ends. Outlive it
+	// briefly so an in-flight vault token push completes rather than being
+	// cut off before authenticating: sshd counts such connections against
+	// the source address (PerSourcePenalties), and for nodes that is the
+	// jump host everybody shares. proxy.Run waits at most 10s for the push.
+	signal.Ignore(syscall.SIGHUP)
 	fs := flag.NewFlagSet("ssh-proxy", flag.ContinueOnError)
 	debugFlag := fs.Bool("debug", os.Getenv("TVBEAT_AUTH_DEBUG") == "1", "print diagnostics")
 	if err := fs.Parse(args); err != nil {

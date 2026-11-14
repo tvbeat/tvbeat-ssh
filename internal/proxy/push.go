@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/flock"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/tvbeat/tvbeat-auth/internal/creds"
@@ -109,6 +110,17 @@ func pushToken(ctx context.Context, o *Options, jump *ssh.Client, t hosts.Target
 		return errors.New("no vault token of our own to derive from")
 	}
 	parentID := shortHash(parent)
+
+	// One push per node at a time: parallel ssh would otherwise open a
+	// burst of extra connections to the node from the jump host's address.
+	// Losing the race just means someone else is pushing.
+	if d, err := site.Dir(); err == nil {
+		fl := flock.New(filepath.Join(d, "push-"+shortHash(key)+".lock"))
+		if ok, err := fl.TryLock(); err != nil || !ok {
+			return nil
+		}
+		defer fl.Unlock()
+	}
 
 	state := loadPushState()
 	if r, ok := state[key]; ok && r.Parent == parentID && time.Until(r.Expires) > pushRefresh {

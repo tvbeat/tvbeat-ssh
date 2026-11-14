@@ -3,6 +3,7 @@
 package creds
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -432,11 +433,15 @@ func (m *Manager) current(paths Paths) (*Creds, error) {
 // asks the agent to sign with exactly this certificate (with IdentitiesOnly
 // it ignores agent keys it was not told about). Leftover key files from the
 // no-agent mode are removed so ssh does not offer stale ones.
+//
+// agent-cert.pub itself is only ever replaced atomically, never removed
+// first: every `prepare` comes through here, and a parallel ssh reading its
+// IdentityFile in between would find nothing and fail to authenticate.
 func writeAgentCert(paths Paths, cert *ssh.Certificate, role string) error {
 	if err := os.MkdirAll(paths.Dir, 0o700); err != nil {
 		return err
 	}
-	for _, p := range []string{paths.Key, paths.Pub, paths.Cert, paths.AgentCert} {
+	for _, p := range []string{paths.Key, paths.Pub, paths.Cert} {
 		os.Remove(p)
 	}
 	line := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(cert)))
@@ -520,7 +525,8 @@ func (m *Manager) sign(ctx context.Context, paths Paths) (*Creds, error) {
 	if !m.NoAgent {
 		if a, err := agentconn.Connect(); err == nil {
 			defer a.Close()
-			removeOurs(a)
+			// add the new key before dropping old ones, so an ssh that is just
+			// authenticating with the previous certificate still finds it
 			err := a.Add(agent.AddedKey{
 				PrivateKey:   priv,
 				Certificate:  cert,
@@ -531,6 +537,7 @@ func (m *Manager) sign(ctx context.Context, paths Paths) (*Creds, error) {
 				if err := writeAgentCert(paths, cert, role); err != nil {
 					return nil, err
 				}
+				removeOurs(a, cert)
 				return &Creds{Cert: cert, Signer: cs, InAgent: true}, nil
 			}
 			m.say("(could not add the certificate to ssh-agent: %v; using key files instead)", err)
@@ -547,15 +554,21 @@ func (m *Manager) sign(ctx context.Context, paths Paths) (*Creds, error) {
 	return &Creds{Cert: cert, Signer: cs}, nil
 }
 
-func removeOurs(a agent.Agent) {
+// removeOurs removes the keys tvbeat-auth put in the agent, except keep
+// (when not nil).
+func removeOurs(a agent.Agent, keep ssh.PublicKey) {
 	keys, err := a.List()
 	if err != nil {
 		return
 	}
 	for _, k := range keys {
-		if strings.HasPrefix(k.Comment, AgentComment) {
-			a.Remove(k)
+		if !strings.HasPrefix(k.Comment, AgentComment) {
+			continue
 		}
+		if keep != nil && bytes.Equal(k.Blob, keep.Marshal()) {
+			continue
+		}
+		a.Remove(k)
 	}
 }
 
@@ -564,7 +577,7 @@ func removeOurs(a agent.Agent) {
 func (m *Manager) Logout(ctx context.Context) []error {
 	var errs []error
 	if a, err := agentconn.Connect(); err == nil {
-		removeOurs(a)
+		removeOurs(a, nil)
 		a.Close()
 	}
 	if paths, err := m.paths(); err == nil {
@@ -604,7 +617,7 @@ func (m *Manager) Logout(ctx context.Context) []error {
 // touching the vault token.
 func (m *Manager) ForgetCert() {
 	if a, err := agentconn.Connect(); err == nil {
-		removeOurs(a)
+		removeOurs(a, nil)
 		a.Close()
 	}
 	if paths, err := m.paths(); err == nil {

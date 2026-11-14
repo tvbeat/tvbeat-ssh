@@ -1,25 +1,30 @@
 on:
   release:
     types: [created]
-  workflow_dispatch:
 
 permissions:
-    contents: write
-    packages: write
+  contents: write
 
 jobs:
-  releases-matrix:
-    name: Release Go Binary
+  release:
+    name: release ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64]
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
     steps:
-    - uses: actions/checkout@v4
-    - uses: wangyoucao577/go-release-action@v1
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: ${{ matrix.goos }}
-        goarch: ${{ matrix.goarch }}
-        project_path: ./src
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: go.mod
+          project_path: ./cmd/tvbeat-auth
+          binary_name: tvbeat-auth
+          # stable names, so README links to releases/latest/download/... work
+          asset_name: tvbeat-auth-${{ matrix.goos }}-${{ matrix.goarch }}
+          ldflags: -s -w -X main.version=${{ github.ref_name }}
+          md5sum: false
+          sha256sum: true

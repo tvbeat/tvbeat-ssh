@@ -29,6 +29,9 @@ func (l *Login) Browser(ctx context.Context) (*vault.Auth, error) {
 	return l.vaultBrowser(ctx)
 }
 
+// openBrowser is swapped out in tests.
+var openBrowser = browser.Open
+
 // callback is a short-lived localhost listener for an OAuth redirect.
 type callback struct {
 	ln   net.Listener
@@ -79,7 +82,7 @@ func (cb *callback) close() {
 func (l *Login) open(u string) {
 	l.say("Opening your browser to sign in to tvbeat...")
 	l.say("If it does not open, visit:\n\n  %s\n", u)
-	if err := browser.Open(u, l.BrowserApp); err != nil {
+	if err := openBrowser(u, l.BrowserApp); err != nil {
 		l.say("(could not open a browser: %v)", err)
 	}
 }

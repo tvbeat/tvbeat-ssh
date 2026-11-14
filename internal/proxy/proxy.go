@@ -130,7 +130,7 @@ func Run(ctx context.Context, o *Options) error {
 	go func() { wg.Wait(); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(10 * time.Second):
 	}
 	return err
 }

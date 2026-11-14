@@ -112,7 +112,6 @@ v write ssh-host/roles/hosts - <<'JSON'
   "allow_host_certificates": true,
   "allow_user_certificates": false,
   "allowed_domains": "*",
-  "allow_glob_domains": true,
   "allow_bare_domains": true,
   "allow_subdomains": true,
   "ttl": "8760h",

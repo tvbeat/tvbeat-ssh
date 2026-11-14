@@ -282,6 +282,13 @@ needs one identity.
    drafted yet.
 6. **Rename the GitHub repo** to `tvbeat/tvbeat-auth` when convenient.
    GitHub redirects the old URL, so existing flake inputs keep working.
+7. **Recommended, and already relevant with 1.x:** exempt the jump hosts
+   from sshd's `PerSourcePenalties` on nodes
+   (`PerSourcePenaltyExemptList`). Every connection to a node comes from
+   its cluster's jump host, so a few failed logins by one person penalise
+   that address for everyone (OpenSSH ≥ 9.8 defaults). The VM test shows
+   it: the roles subtest's deliberate root-login refusal earns the jump
+   host a "failed authentication" penalty on the node.
 
 ## Open questions
 
@@ -298,8 +305,10 @@ needs one identity.
 
 ## VM test result
 
-**PASSED**: all 19 subtests of `nix build .#checks.x86_64-linux.vm`. The
-test script took 395s under TCG emulation (no KVM on this host).
+**PASSED**: all 19 subtests of `nix build .#checks.x86_64-linux.vm` on
+the final tree, which is also `nix flake check` on the PR branch (the same
+derivation). The test script took 408s under TCG emulation (no KVM on this
+host).
 
 1. vault and dex come up; vault is configured like production, plus the
    new mounts and the username claim mapping
@@ -316,7 +325,8 @@ test script took 395s under TCG emulation (no KVM on this host).
 7. a child vault token is pushed to the node: non-orphan, identity policy
    `all`, marked as ours in the meta file
 8. parallel ssh from a cold start (6 at once) signs in exactly once;
-   `logout` revoked the pushed child token
+   `logout` revoked the pushed child token. The node logs no sshd penalty
+   against the jump host's address.
 9. **token helper in a tmux session:**
    - `vault` uses the pushed token
    - the token is revoked; without a terminal, `vault` fails at once
@@ -357,3 +367,18 @@ Harness notes:
   and `setup` correctly refused to edit it (exit 3, "add this line
   yourself"). The fixture now uses `install -m 600`.
 - As in round 1, the `vault-login` subtest starts through `systemd-run`.
+
+Real bugs the VM test found this round (fixed in "fix races under parallel
+ssh"):
+
+- **One parallel session out of six failed to authenticate**, on one run in
+  three. Every `prepare` deleted and rewrote `agent-cert.pub`, the
+  IdentityFile ssh reads, and a parallel ssh reading it in the gap had no
+  key. The file is now only replaced atomically, and new agent keys are
+  added before old ones are removed. This was a round-1 bug.
+- **Token pushes were cut off before authenticating.** ssh sends its
+  ProxyCommand SIGHUP when the session ends, which killed in-flight pushes
+  half way through the handshake. The node's sshd then logged
+  PerSourcePenalties against the jump host's address. `ssh-proxy` now
+  ignores SIGHUP and waits for the push (bounded at 10s). Only one process
+  pushes to a node at a time.

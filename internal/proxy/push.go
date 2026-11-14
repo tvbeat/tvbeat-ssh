@@ -13,30 +13,43 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/creds"
-	"github.com/tvbeat/tvbeat-ssh/internal/fsutil"
-	"github.com/tvbeat/tvbeat-ssh/internal/hosts"
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/creds"
+	"github.com/tvbeat/tvbeat-auth/internal/fsutil"
+	"github.com/tvbeat/tvbeat-auth/internal/hosts"
+	"github.com/tvbeat/tvbeat-auth/internal/nodetoken"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
 )
 
-// pushScript installs the token from stdin as ~/.vault-token, unless the
-// user put a token of their own there (one we did not push).
+// pushScript installs the token from stdin as ~/.vault-token, valid until
+// the unix time in $1. It writes the meta file internal/nodetoken reads, in
+// the same format. It leaves the file alone, and exits non-zero, when:
+//   - 3: the token there is the user's own (no matching meta), or
+//   - 4: it is one of ours that lasts longer than the new one (e.g. from a
+//     sign-in on the server), so replacing it would be a downgrade.
 const pushScript = `umask 077
 set -e
 t=$(cat)
-d="$HOME/.cache/tvbeat-ssh"
+exp=$1
+d="$HOME/` + nodetoken.MetaDir + `"
 f="$HOME/.vault-token"
-m="$d/pushed-token.sha256"
+m="$d/` + nodetoken.MetaName + `"
 mkdir -p "$d"
 if [ -s "$f" ]; then
-  if ! [ -f "$m" ] || [ "$(sha256sum < "$f" | cut -d' ' -f1)" != "$(cat "$m")" ]; then
-    exit 3
-  fi
+  [ -f "$m" ] || exit 3
+  read -r sum oldexp < "$m" || exit 3
+  [ "$(tr -d '\n\r\t ' < "$f" | sha256sum | cut -d' ' -f1)" = "$sum" ] || exit 3
+  [ "${oldexp:-0}" -gt "$exp" ] && exit 4
 fi
+printf '%s %s\n' "$(printf '%s' "$t" | sha256sum | cut -d' ' -f1)" "$exp" > "$m.tmp"
+mv "$m.tmp" "$m"
 printf '%s' "$t" > "$f.tmp"
 mv "$f.tmp" "$f"
-printf '%s' "$t" | sha256sum | cut -d' ' -f1 > "$m"
 `
+
+// pushCommand is what runs on the node; the token goes in on stdin.
+func pushCommand(expires time.Time) string {
+	return "sh -c '" + strings.ReplaceAll(pushScript, "'", `'\''`) + "' tvbeat-auth-push " + fmt.Sprint(expires.Unix())
+}
 
 // a push is repeated when the token we pushed has less than this left
 const pushRefresh = time.Hour
@@ -84,7 +97,7 @@ func savePushState(m map[string]pushRecord) {
 
 // pushToken copies a short-lived child of the user's vault token to the
 // node, so `vault` works there without another sign-in. The child dies with
-// the parent, so `tvbeat-ssh logout` revokes every pushed token at once.
+// the parent, so `tvbeat-auth logout` revokes every pushed token at once.
 func pushToken(ctx context.Context, o *Options, jump *ssh.Client, t hosts.Target, c *creds.Creds) error {
 	key := o.User + "@" + t.Node + "." + t.Cluster.Name
 
@@ -106,7 +119,7 @@ func pushToken(ctx context.Context, o *Options, jump *ssh.Client, t hosts.Target
 	if v.Token == "" {
 		v.Token = parent
 	}
-	child, err := v.CreateChild(ctx, o.Manager.Settings.Site.PushTokenTTL, "tvbeat-ssh-"+t.Node+"."+t.Cluster.Name)
+	child, err := v.CreateChild(ctx, o.Manager.Settings.Site.PushTokenTTL, "tvbeat-auth-"+t.Node+"."+t.Cluster.Name)
 	if err != nil {
 		return err
 	}
@@ -147,14 +160,15 @@ func pushToken(ctx context.Context, o *Options, jump *ssh.Client, t hosts.Target
 	sess.Stdin = strings.NewReader(child.ClientToken)
 	var stderr bytes.Buffer
 	sess.Stderr = &stderr
-	err = sess.Run("sh -c '" + strings.ReplaceAll(pushScript, "'", `'\''`) + "'")
+	err = sess.Run(pushCommand(expires))
 
 	rec := pushRecord{Parent: parentID, Expires: expires}
 	var ee *ssh.ExitError
 	switch {
-	case errors.As(err, &ee) && ee.ExitStatus() == 3:
-		// the user has their own ~/.vault-token there; leave it alone and
-		// do not ask again for a while
+	case errors.As(err, &ee) && (ee.ExitStatus() == 3 || ee.ExitStatus() == 4):
+		// 3: the user has their own ~/.vault-token there; 4: a longer-lived
+		// one of ours (a sign-in on the server). Leave it alone and do not
+		// ask again for a while.
 		rec.Kept = true
 		rec.Expires = time.Now().Add(2 * pushRefresh)
 		revokeQuietly(ctx, o, child.ClientToken)

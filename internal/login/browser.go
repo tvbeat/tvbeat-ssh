@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/browser"
-	"github.com/tvbeat/tvbeat-ssh/internal/vault"
+	"github.com/tvbeat/tvbeat-auth/internal/browser"
+	"github.com/tvbeat/tvbeat-auth/internal/vault"
 )
 
 // Browser signs in through the user's web browser: directly with the

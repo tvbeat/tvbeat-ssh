@@ -20,7 +20,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
 )
 
 // fakeVault validates one token and signs user certificates with an
@@ -79,7 +79,7 @@ func setup(t *testing.T, withAgent bool) (*Manager, *fakeVault, agent.Agent) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	t.Setenv("TVBEAT_SSH_HOME", filepath.Join(home, "state"))
+	t.Setenv("TVBEAT_AUTH_HOME", filepath.Join(home, "state"))
 	os.MkdirAll(filepath.Join(home, "state"), 0o700)
 	os.WriteFile(filepath.Join(home, "state", "vault-token"), []byte("good\n"), 0o600)
 
@@ -123,7 +123,7 @@ func TestEnsureAgent(t *testing.T) {
 		t.Fatal("expected the key in the agent")
 	}
 	keys, _ := kr.List()
-	if len(keys) != 1 || keys[0].Comment != "tvbeat-ssh role=all" || !strings.Contains(keys[0].Format, "cert") {
+	if len(keys) != 1 || keys[0].Comment != "tvbeat-auth role=all" || !strings.Contains(keys[0].Format, "cert") {
 		t.Fatalf("agent keys: %v", keys)
 	}
 	paths, _ := SSHPaths()
@@ -230,7 +230,7 @@ func TestEnsureForbiddenRole(t *testing.T) {
 
 func TestNoTokenNonInteractiveDevice(t *testing.T) {
 	m, _, _ := setup(t, true)
-	os.Remove(filepath.Join(os.Getenv("TVBEAT_SSH_HOME"), "vault-token"))
+	os.Remove(filepath.Join(os.Getenv("TVBEAT_AUTH_HOME"), "vault-token"))
 	m.Settings.Site.SSO = site.SSO{Issuer: "http://127.0.0.1:1", Device: site.Client{ID: "d"}, Browser: site.Client{ID: "b"}}
 	m.Settings.Login = "device"
 	_, err := m.Ensure(context.Background())

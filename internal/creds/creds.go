@@ -19,15 +19,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/agentconn"
-	"github.com/tvbeat/tvbeat-ssh/internal/fsutil"
-	"github.com/tvbeat/tvbeat-ssh/internal/login"
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
-	"github.com/tvbeat/tvbeat-ssh/internal/vault"
+	"github.com/tvbeat/tvbeat-auth/internal/agentconn"
+	"github.com/tvbeat/tvbeat-auth/internal/fsutil"
+	"github.com/tvbeat/tvbeat-auth/internal/login"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/vault"
 )
 
-// AgentComment marks keys tvbeat-ssh put in the agent.
-const AgentComment = "tvbeat-ssh"
+// AgentComment marks keys tvbeat-auth put in the agent.
+const AgentComment = "tvbeat-auth"
 
 // minTokenTTL is how long a vault token must still be valid to be used.
 const minTokenTTL = 5 * time.Minute
@@ -43,6 +43,9 @@ type Manager struct {
 	Interactive bool
 	// NoAgent forces key files even when an agent is available.
 	NoAgent bool
+	// KeyPaths, when set, replaces the usual ~/.ssh/tvbeat paths. The
+	// tvbeat-ssh 1.x compatibility shim uses it: old configs name other files.
+	KeyPaths *Paths
 
 	vault *vault.Client
 }
@@ -70,7 +73,7 @@ type Paths struct {
 	Dir, Key, Pub, Cert, AgentCert, Config, KnownHosts string
 }
 
-// SSHPaths returns the paths tvbeat-ssh uses under ~/.ssh.
+// SSHPaths returns the paths tvbeat-auth uses under ~/.ssh.
 func SSHPaths() (Paths, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -86,6 +89,30 @@ func SSHPaths() (Paths, error) {
 		Config:     filepath.Join(d, "config"),
 		KnownHosts: filepath.Join(d, "known_hosts"),
 	}, nil
+}
+
+// LegacyPaths are the files tvbeat-ssh 1.x configs point ssh at.
+func LegacyPaths() (Paths, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return Paths{}, err
+	}
+	d := filepath.Join(cache, "tvbeat", ".ssh")
+	return Paths{
+		Dir:       d,
+		Key:       filepath.Join(d, "id_ed25519"),
+		Pub:       filepath.Join(d, "id_ed25519.pub"),
+		Cert:      filepath.Join(d, "id_ed25519-cert.pub"),
+		AgentCert: filepath.Join(d, "agent-cert.pub"),
+	}, nil
+}
+
+// paths returns where this manager keeps key and certificate files.
+func (m *Manager) paths() (Paths, error) {
+	if m.KeyPaths != nil {
+		return *m.KeyPaths, nil
+	}
+	return SSHPaths()
 }
 
 func (m *Manager) say(format string, a ...any) {
@@ -147,7 +174,7 @@ func (m *Manager) lock(ctx context.Context) (func(), error) {
 		defer cancel()
 		ok, err = fl.TryLockContext(lctx, 250*time.Millisecond)
 		if err != nil || !ok {
-			return nil, fmt.Errorf("gave up waiting for another tvbeat-ssh to finish signing in: %v", err)
+			return nil, fmt.Errorf("gave up waiting for another tvbeat-auth to finish signing in: %v", err)
 		}
 	}
 	return func() { fl.Unlock() }, nil
@@ -217,7 +244,7 @@ func (m *Manager) loginOnly(ctx context.Context) (*vault.Client, error) {
 	// a browser sign-in works even when our messages are hidden (ansible,
 	// IDEs capture stderr); a device code that nobody can read does not
 	if method == login.Device && !m.Interactive {
-		return nil, errors.New("you need to sign in, but nobody can see the sign-in code here - run `tvbeat-ssh login` in a terminal first")
+		return nil, errors.New("you need to sign in, but nobody can see the sign-in code here - run `tvbeat-auth login` in a terminal first")
 	}
 	lctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
@@ -240,7 +267,7 @@ func (m *Manager) loginOnly(ctx context.Context) (*vault.Client, error) {
 	return v, nil
 }
 
-// saveToken stores token for tvbeat-ssh, and for the vault CLI when that has
+// saveToken stores token for tvbeat-auth, and for the vault CLI when that has
 // no usable token of its own (we never clobber a working ~/.vault-token).
 func (m *Manager) saveToken(token string) error {
 	p, err := tokenPath()
@@ -295,7 +322,7 @@ func agentComment(role string) string { return AgentComment + " role=" + role }
 
 // Ensure returns a usable certificate, signing (and signing in) if needed.
 func (m *Manager) Ensure(ctx context.Context) (*Creds, error) {
-	paths, err := SSHPaths()
+	paths, err := m.paths()
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +345,7 @@ func (m *Manager) Ensure(ctx context.Context) (*Creds, error) {
 
 // Current returns the usable certificate if there is one, without signing.
 func (m *Manager) Current() (*Creds, error) {
-	paths, err := SSHPaths()
+	paths, err := m.paths()
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +497,7 @@ func (m *Manager) sign(ctx context.Context, paths Paths) (*Creds, error) {
 	}
 	for _, p := range cert.ValidPrincipals {
 		if strings.Contains(p, "{{") {
-			return nil, fmt.Errorf("vault issued a certificate with an unresolved principal %q - the vault token in use has no identity; run `tvbeat-ssh login --force`", p)
+			return nil, fmt.Errorf("vault issued a certificate with an unresolved principal %q - the vault token in use has no identity; run `tvbeat-auth login --force`", p)
 		}
 	}
 	signer, err := ssh.NewSignerFromKey(priv)
@@ -540,7 +567,7 @@ func (m *Manager) Logout(ctx context.Context) []error {
 		removeOurs(a)
 		a.Close()
 	}
-	if paths, err := SSHPaths(); err == nil {
+	if paths, err := m.paths(); err == nil {
 		for _, p := range []string{paths.Key, paths.Pub, paths.Cert, paths.AgentCert} {
 			if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 				errs = append(errs, err)
@@ -580,7 +607,7 @@ func (m *Manager) ForgetCert() {
 		removeOurs(a)
 		a.Close()
 	}
-	if paths, err := SSHPaths(); err == nil {
+	if paths, err := m.paths(); err == nil {
 		for _, p := range []string{paths.Key, paths.Pub, paths.Cert, paths.AgentCert} {
 			os.Remove(p)
 		}

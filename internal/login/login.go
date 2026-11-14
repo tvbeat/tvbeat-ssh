@@ -9,8 +9,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
-	"github.com/tvbeat/tvbeat-ssh/internal/vault"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/vault"
 )
 
 // Method is how to sign in.
@@ -40,7 +40,7 @@ func (l *Login) say(format string, a ...any) {
 // Choose resolves Auto to a concrete method for this machine.
 func (l *Login) Choose(m Method) Method {
 	if m == Auto {
-		if v := os.Getenv("TVBEAT_SSH_LOGIN"); v == string(Browser) || v == string(Device) {
+		if v := os.Getenv("TVBEAT_AUTH_LOGIN"); v == string(Browser) || v == string(Device) {
 			m = Method(v)
 		}
 	}

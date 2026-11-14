@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
-	"github.com/tvbeat/tvbeat-ssh/internal/vault"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/vault"
 )
 
 func fakeJWT(claims map[string]any) string {
@@ -87,7 +87,7 @@ func newVault(t *testing.T, mount string) *httptest.Server {
 		}
 		var body struct{ Role, JWT string }
 		json.NewDecoder(r.Body).Decode(&body)
-		if body.Role != "tvbeat-ssh" || strings.Count(body.JWT, ".") != 2 {
+		if body.Role != "tvbeat-auth" || strings.Count(body.JWT, ".") != 2 {
 			w.WriteHeader(400)
 			io.WriteString(w, `{"errors":["bad login"]}`)
 			return
@@ -102,7 +102,7 @@ func testSite(i *idp, v *httptest.Server) *site.Site {
 	return &site.Site{
 		VaultAddr: v.URL,
 		SSO: site.SSO{
-			Issuer: i.URL, VaultMount: "google", VaultRole: "tvbeat-ssh",
+			Issuer: i.URL, VaultMount: "google", VaultRole: "tvbeat-auth",
 			Browser: site.Client{ID: "desk"},
 			Device:  site.Client{ID: "dev", Secret: "devsecret"},
 		},
@@ -186,7 +186,7 @@ func TestCheckNonce(t *testing.T) {
 }
 
 func TestChoose(t *testing.T) {
-	t.Setenv("TVBEAT_SSH_LOGIN", "")
+	t.Setenv("TVBEAT_AUTH_LOGIN", "")
 	t.Setenv("SSH_CONNECTION", "1.2.3.4 1 5.6.7.8 22")
 	var out strings.Builder
 	s := &site.Site{}
@@ -201,8 +201,8 @@ func TestChoose(t *testing.T) {
 	if l.Choose(Auto) != Device {
 		t.Error("over ssh the device flow should be chosen")
 	}
-	t.Setenv("TVBEAT_SSH_LOGIN", "browser")
+	t.Setenv("TVBEAT_AUTH_LOGIN", "browser")
 	if l.Choose(Auto) != Browser {
-		t.Error("TVBEAT_SSH_LOGIN not honoured")
+		t.Error("TVBEAT_AUTH_LOGIN not honoured")
 	}
 }

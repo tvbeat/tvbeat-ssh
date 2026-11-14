@@ -1,5 +1,5 @@
 {
-  description = "tvbeat-ssh - ssh access to tvbeat systems with short-lived certificates from vault";
+  description = "tvbeat-auth - sign in to tvbeat systems: ssh with short-lived certificates from vault, vault tokens";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -15,20 +15,22 @@
         };
       in
       {
-        packages.default = pkgs.tvbeat-ssh;
+        packages.default = pkgs.tvbeat-auth;
+        packages.tvbeat-auth = pkgs.tvbeat-auth;
 
         checks = {
-          inherit (pkgs) tvbeat-ssh;
+          inherit (pkgs) tvbeat-auth;
         } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           vm = import ./nix/tests/vm.nix { inherit pkgs self; };
         };
 
         devShells.default = pkgs.mkShell {
-          name = "tvbeat-ssh";
+          name = "tvbeat-auth";
           packages = with pkgs; [ go gopls gotools go-tools ];
         };
       }
     ) // {
       overlays.default = import ./nix/overlay.nix { inherit self; };
+      nixosModules.default = import ./nix/module.nix { inherit self; };
     };
 }

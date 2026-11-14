@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/creds"
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/creds"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
 )
 
 const caKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGinXEo9HjjFC4RD2xBxe4s3WUoEioOw6OUWr3pCfaaa"
@@ -46,30 +46,30 @@ func TestRender(t *testing.T) {
 		Cert:       "/home/x/.ssh/tvbeat/id_ed25519-cert.pub",
 		KnownHosts: "/home/x/.ssh/tvbeat/known_hosts",
 	}
-	b, err := Render(&site.Default, "jdoe", "/usr/local/bin/tvbeat-ssh", true, paths)
+	b, err := Render(&site.Default, "jdoe", "/usr/local/bin/tvbeat-auth", true, paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(b)
 	for _, want := range []string{
 		"Host *.dev0-hetz dev0-hetz+* dev0-hetz jump.dev0-hetz.tvbeat.com",
-		"ProxyCommand /usr/local/bin/tvbeat-ssh proxycommand %r %h %p",
+		"ProxyCommand /usr/local/bin/tvbeat-auth ssh-proxy %r %h %p",
 		"User jdoe",
 		"IdentityFile /home/x/.ssh/tvbeat/agent-cert.pub",
 		"IdentitiesOnly yes",
 		"StrictHostKeyChecking yes",
 		"Match host *.dev0-hetz,dev0-hetz+*,dev0-hetz,jump.dev0-hetz.tvbeat.com,",
-		`exec "/usr/local/bin/tvbeat-ssh prepare %h"`,
+		`exec "/usr/local/bin/tvbeat-auth prepare %h"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("config lacks %q:\n%s", want, s)
 		}
 	}
 
-	b, _ = Render(&site.Default, "jdoe", "/Users/John Smith/bin/tvbeat-ssh", false, paths)
+	b, _ = Render(&site.Default, "jdoe", "/Users/John Smith/bin/tvbeat-auth", false, paths)
 	s = string(b)
-	if !strings.Contains(s, `ProxyCommand "/Users/John Smith/bin/tvbeat-ssh" proxycommand`) ||
-		!strings.Contains(s, `exec "'/Users/John Smith/bin/tvbeat-ssh' prepare %h"`) {
+	if !strings.Contains(s, `ProxyCommand "/Users/John Smith/bin/tvbeat-auth" ssh-proxy`) ||
+		!strings.Contains(s, `exec "'/Users/John Smith/bin/tvbeat-auth' prepare %h"`) {
 		t.Errorf("paths with spaces not quoted:\n%s", s)
 	}
 	if strings.Contains(s, "StrictHostKeyChecking") {
@@ -102,7 +102,7 @@ func TestEnsureIncludePrependsAndMigrates(t *testing.T) {
 	if strings.Contains(s, "Include tvbeat.conf") {
 		t.Error("legacy include not removed")
 	}
-	if !strings.HasPrefix(s, "# added by `tvbeat-ssh config`") || !strings.Contains(s, IncludeLine+"\n\nHost github.com") {
+	if !strings.HasPrefix(s, "# added by `tvbeat-auth setup`") || !strings.Contains(s, IncludeLine+"\n\nHost github.com") {
 		t.Errorf("unexpected config:\n%s", s)
 	}
 	if st, _ := os.Stat(cfg); st.Mode().Perm() != 0o640 {

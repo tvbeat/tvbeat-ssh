@@ -3,7 +3,7 @@ package hosts
 import (
 	"testing"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
 )
 
 func TestParse(t *testing.T) {

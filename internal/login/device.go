@@ -13,8 +13,8 @@ import (
 
 	"github.com/mdp/qrterminal/v3"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
-	"github.com/tvbeat/tvbeat-ssh/internal/vault"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/vault"
 )
 
 type discovery struct {

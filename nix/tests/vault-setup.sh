@@ -14,6 +14,10 @@ REDIRECT=${REDIRECT:-http://localhost:8250/oidc/callback}
 v() { vault "$@"; }
 
 # --- auth: oidc mount (browser flow, as today) ------------------------------
+# claim_mappings "name" -> "username": in production the linux username comes
+# from the Google Workspace custom attribute ("/external/username", fetched by
+# the gsuite provider); dex has no custom attributes, so its "name" claim (the
+# static password username) stands in for it.
 v auth enable -path=oidc oidc
 v write auth/oidc/config \
   oidc_discovery_url="$ISSUER" \
@@ -34,18 +38,18 @@ v write auth/oidc/role/default - <<JSON
   "token_ttl": $TOKEN_TTL,
   "token_max_ttl": $TOKEN_TTL,
   "bound_claims": {"groups": "all@$EMAIL_DOMAIN"},
-  "claim_mappings": {"email": "email"}
+  "claim_mappings": {"email": "email", "name": "username"}
 }
 JSON
 
 # --- auth: google jwt mount (new) ---------------------------------------------
 # vault refuses JWT logins on a mount configured for its OIDC redirect flow,
-# so tvbeat-ssh 2 signs in with the IdP itself and logs in here with the ID
+# so tvbeat-auth 2 signs in with the IdP itself and logs in here with the ID
 # token. Configured with oidc_discovery_url only (no client id/secret).
 v auth enable -path=google jwt
 v write auth/google/config oidc_discovery_url="$ISSUER"
 GACCESSOR=$(v auth list -format=json | jq -r '."google/".accessor')
-v write auth/google/role/tvbeat-ssh - <<JSON
+v write auth/google/role/tvbeat-auth - <<JSON
 {
   "role_type": "jwt",
   "bound_audiences": ["$DESKTOP_CLIENT_ID", "$DEVICE_CLIENT_ID"],
@@ -55,7 +59,7 @@ v write auth/google/role/tvbeat-ssh - <<JSON
   "token_ttl": $TOKEN_TTL,
   "token_max_ttl": $TOKEN_TTL,
   "bound_claims": {"groups": "all@$EMAIL_DOMAIN"},
-  "claim_mappings": {"email": "email"}
+  "claim_mappings": {"email": "email", "name": "username"}
 }
 JSON
 

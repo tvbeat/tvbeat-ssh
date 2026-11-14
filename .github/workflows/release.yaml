@@ -21,10 +21,10 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           goversion: go.mod
-          project_path: ./cmd/tvbeat-ssh
-          binary_name: tvbeat-ssh
+          project_path: ./cmd/tvbeat-auth
+          binary_name: tvbeat-auth
           # stable names, so README links to releases/latest/download/... work
-          asset_name: tvbeat-ssh-${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_name: tvbeat-auth-${{ matrix.goos }}-${{ matrix.goarch }}
           ldflags: -s -w -X main.version=${{ github.ref_name }}
           md5sum: false
           sha256sum: true

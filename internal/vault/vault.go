@@ -1,5 +1,5 @@
 // Package vault is a deliberately tiny client for the handful of vault
-// endpoints tvbeat-ssh uses.
+// endpoints tvbeat-auth uses.
 package vault
 
 import (

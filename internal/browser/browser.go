@@ -8,13 +8,13 @@ import (
 )
 
 // Open opens url in app, or the default browser when app is empty. The
-// environment variable TVBEAT_SSH_BROWSER, when set, is a command that
+// environment variable TVBEAT_AUTH_BROWSER, when set, is a command that
 // receives the URL as its last argument and takes precedence.
 //
 // The browser never gets our stdin/stdout: when we run as an ssh
 // ProxyCommand those carry the ssh connection itself.
 func Open(url, app string) error {
-	if cmd := os.Getenv("TVBEAT_SSH_BROWSER"); cmd != "" {
+	if cmd := os.Getenv("TVBEAT_AUTH_BROWSER"); cmd != "" {
 		f := strings.Fields(cmd)
 		return start(f[0], append(f[1:], url)...)
 	}

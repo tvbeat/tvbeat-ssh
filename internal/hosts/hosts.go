@@ -12,7 +12,7 @@ package hosts
 import (
 	"strings"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/site"
+	"github.com/tvbeat/tvbeat-auth/internal/site"
 )
 
 // Target is a parsed host name.

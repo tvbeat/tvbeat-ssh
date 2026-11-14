@@ -1,4 +1,4 @@
-// Package proxy implements `tvbeat-ssh proxycommand`: it makes sure the user
+// Package proxy implements `tvbeat-auth ssh-proxy`: it makes sure the user
 // holds a valid certificate, connects to the cluster's jump host and hands
 // ssh a byte stream to the target node.
 //
@@ -24,9 +24,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/creds"
-	"github.com/tvbeat/tvbeat-ssh/internal/hosts"
-	"github.com/tvbeat/tvbeat-ssh/internal/sshconfig"
+	"github.com/tvbeat/tvbeat-auth/internal/creds"
+	"github.com/tvbeat/tvbeat-auth/internal/hosts"
+	"github.com/tvbeat/tvbeat-auth/internal/sshconfig"
 )
 
 // Options for one proxied connection.
@@ -44,7 +44,7 @@ type Options struct {
 
 func (o *Options) debugf(format string, a ...any) {
 	if o.Debug {
-		fmt.Fprintf(o.Log, "tvbeat-ssh: "+format+"\n", a...)
+		fmt.Fprintf(o.Log, "tvbeat-auth: "+format+"\n", a...)
 	}
 }
 

@@ -1,4 +1,4 @@
-module github.com/tvbeat/tvbeat-ssh
+module github.com/tvbeat/tvbeat-auth
 
 go 1.26.0
 

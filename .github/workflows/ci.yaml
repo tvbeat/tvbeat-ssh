@@ -22,8 +22,8 @@ jobs:
         run: |
           for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             echo "== $t"
-            GOOS=${t%/*} GOARCH=${t#*/} go vet ./...
-            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/tvbeat-ssh
+            CGO_ENABLED=0 GOOS=${t%/*} GOARCH=${t#*/} go vet ./...
+            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/tvbeat-auth
           done
 
   windows:
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test ./internal/hosts ./internal/login ./internal/proxy
+      - run: go test ./cmd/... ./internal/hosts ./internal/login ./internal/proxy ./internal/site
 
   macos:
     runs-on: macos-latest

@@ -1,6 +1,6 @@
-// Package site holds everything tvbeat-ssh knows about the infrastructure it
+// Package site holds everything tvbeat-auth knows about the infrastructure it
 // talks to (vault, identity provider, clusters) plus the per-user settings
-// written by `tvbeat-ssh config`.
+// written by `tvbeat-auth setup`.
 package site
 
 import (
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tvbeat/tvbeat-ssh/internal/fsutil"
+	"github.com/tvbeat/tvbeat-auth/internal/fsutil"
 )
 
 // Cluster describes one environment reachable through a jump host.
@@ -55,6 +55,9 @@ type SSO struct {
 	// Browser is a loopback/PKCE "desktop" client, Device a device-flow one.
 	Browser Client `json:"browser"`
 	Device  Client `json:"device"`
+	// SSHRoles overrides Site.SSHRoles while SSO is in use: a token from
+	// the SSO mount needs ssh roles templated on that mount's identity.
+	SSHRoles map[string]string `json:"ssh_roles,omitempty"`
 }
 
 // Site is the organisation-wide configuration.
@@ -81,7 +84,7 @@ type Site struct {
 	// PushTokenTTL is the TTL of child tokens pushed to nodes.
 	PushTokenTTL string    `json:"push_token_ttl"`
 	Clusters     []Cluster `json:"clusters"`
-	// URL, when set, is fetched by `config` to refresh this description.
+	// URL, when set, is fetched by `setup` to refresh this description.
 	URL string `json:"url,omitempty"`
 }
 
@@ -93,6 +96,11 @@ func (s *Site) DeviceConfigured() bool { return s.SSO.Issuer != "" && s.SSO.Devi
 
 // SSHRole maps a role name to the vault ssh role.
 func (s *Site) SSHRole(name string) string {
+	if s.SSOConfigured() || s.DeviceConfigured() {
+		if r, ok := s.SSO.SSHRoles[name]; ok && r != "" {
+			return r
+		}
+	}
 	if r, ok := s.SSHRoles[name]; ok && r != "" {
 		return r
 	}
@@ -100,7 +108,7 @@ func (s *Site) SSHRole(name string) string {
 }
 
 // Default is compiled into the binary; it is what a plain
-// `tvbeat-ssh config --username x` uses.
+// `tvbeat-auth setup` uses.
 var Default = Site{
 	VaultAddr: "https://vault.tvbeat.com",
 	SSO: SSO{
@@ -109,7 +117,9 @@ var Default = Site{
 		// browser sign-in uses vault's OIDC flow and there is no device flow.
 		Issuer:     "",
 		VaultMount: "google",
-		VaultRole:  "tvbeat-ssh",
+		VaultRole:  "tvbeat-auth",
+		// see deployments infra/vault/tf/ssh.tf; certificates are identical
+		SSHRoles: map[string]string{"all": "sso-all", "devops": "sso-devops"},
 	},
 	AuthMount:    "oidc",
 	BrowserRole:  "default",
@@ -138,19 +148,55 @@ type Settings struct {
 	SiteFetched time.Time `json:"site_fetched,omitempty"`
 }
 
-// ErrNotConfigured is returned when `tvbeat-ssh config` has not been run.
-var ErrNotConfigured = errors.New("tvbeat-ssh is not configured yet - run `tvbeat-ssh config --username <you>`")
+// ErrNotConfigured is returned when `tvbeat-auth setup` has not been run.
+var ErrNotConfigured = errors.New("tvbeat-auth is not configured yet - run `tvbeat-auth setup`")
+
+// SystemFile is an optional site description an administrator installs on
+// a machine (the NixOS module writes it on servers).
+const SystemFile = "/etc/tvbeat-auth/site.json"
+
+// Resolve returns settings for commands that also work without `setup`
+// (vault-login and the token helper on servers, the 1.x shim). The site
+// comes from, in order: ref (a file), $TVBEAT_AUTH_SITE, the user's
+// settings, SystemFile, the built-in default.
+func Resolve(ref string) (*Settings, error) {
+	if ref == "" {
+		ref = os.Getenv("TVBEAT_AUTH_SITE")
+	}
+	s, err := Load()
+	if err != nil {
+		s = &Settings{Role: "all"}
+	}
+	switch {
+	case ref != "":
+		ns, err := LoadFile(ref)
+		if err != nil {
+			return nil, err
+		}
+		s.Site = *ns
+	case len(s.Site.Clusters) > 0:
+		// the user's own settings
+	default:
+		if ns, err := LoadFile(SystemFile); err == nil {
+			s.Site = *ns
+		} else {
+			s.Site = Default
+		}
+	}
+	s.Site.fillDefaults()
+	return s, nil
+}
 
 // Dir is where settings, the vault token and lock files live.
 func Dir() (string, error) {
-	if d := os.Getenv("TVBEAT_SSH_HOME"); d != "" {
+	if d := os.Getenv("TVBEAT_AUTH_HOME"); d != "" {
 		return d, nil
 	}
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, "tvbeat-ssh"), nil
+	return filepath.Join(base, "tvbeat-auth"), nil
 }
 
 func settingsPath() (string, error) {
@@ -176,7 +222,7 @@ func Load() (*Settings, error) {
 	}
 	var s Settings
 	if err := json.Unmarshal(b, &s); err != nil {
-		return nil, fmt.Errorf("%s is corrupt (%v) - re-run `tvbeat-ssh config`", p, err)
+		return nil, fmt.Errorf("%s is corrupt (%v) - re-run `tvbeat-auth setup`", p, err)
 	}
 	s.Site.fillDefaults()
 	return &s, nil
